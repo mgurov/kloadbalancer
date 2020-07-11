@@ -7,14 +7,14 @@ class LoadBalancer(
         val balancingStrategy: BalancingStrategy = RandomBalancingStrategy()
 ) {
     //TODO: volatile
-    private var providers: List<ProviderStatus> = listOf() //TODO: thread unsafe yet
+    private var providers: List<ProviderStatusHolder> = listOf() //TODO: thread unsafe yet
 
     //TODO: document up to client to ensure uniqueness of the providers.
     fun register(provider: Provider) {
         check(providers.size < capacity) {
             "Can't register more than $capacity providers"
         }
-        providers = providers + ProviderStatus(provider, active = true)
+        providers = providers + ProviderStatusHolder(provider, status = ProviderStatus.OK)
     }
 
     //TODO: document first only and by equality
@@ -24,9 +24,18 @@ class LoadBalancer(
     }
 
     //TODO: make it be executed periodically (every X sec)
+    //TODO: make it immutable maybe.
     fun checkProvidersHealth() {
         providers.forEach {
-            it.active = it.provider.check()
+            if (it.provider.check()) {
+                if (it.status == ProviderStatus.NOK) {
+                    it.status = ProviderStatus.RECOVERING
+                } else {
+                    it.status = ProviderStatus.OK
+                }
+            } else {
+                it.status = ProviderStatus.NOK
+            }
         }
     }
 
@@ -37,14 +46,20 @@ class LoadBalancer(
         }
         //TODO: more performance effective way
         //TODO: test for all disabled providers
-        return balancingStrategy.selectNext(providers.filter { it.active }.map { it.provider }).get()
+        return balancingStrategy.selectNext(providers.filter { it.status == ProviderStatus.OK }.map { it.provider }).get()
     }
 
     //TODO: make data class with copying
-    private class ProviderStatus(
+    private class ProviderStatusHolder(
             val provider: Provider,
-            var active: Boolean
+            var status: ProviderStatus
     )
+
+    private enum class ProviderStatus{
+        OK,
+        RECOVERING,
+        NOK
+    }
 }
 
 interface BalancingStrategy {
