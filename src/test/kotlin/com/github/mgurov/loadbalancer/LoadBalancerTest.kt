@@ -141,8 +141,11 @@ class LoadBalancerTest {
 
         loadBalancer.register(object: Provider {
             override fun get(): String {
+                println("new call through")
                 hasPaused.countDown()
+                println("awaiting")
                 mayGo.await()
+                println("may go")
                 return "OK"
             }
 
@@ -151,27 +154,23 @@ class LoadBalancerTest {
             }
         })
 
-        val executorService: ExecutorService = ThreadPoolExecutor(1, 3, 0L, TimeUnit.MILLISECONDS, LinkedBlockingQueue())
+        val executorService: ExecutorService = ThreadPoolExecutor(3, 3, 0L, TimeUnit.MILLISECONDS, LinkedBlockingQueue())
 
-        val firstCall = executorService.submit(object: Callable<String?>{
+        val call = object : Callable<String?> {
             override fun call(): String? {
-                return loadBalancer.get()
+                println("starting call")
+                val result = loadBalancer.get()
+                println("got result $result")
+                return result
             }
-        })
+        }
+        val firstCall = executorService.submit(call)
 
-        val secondCall = executorService.submit(object: Callable<String?>{
-            override fun call(): String? {
-                return loadBalancer.get()
-            }
-        })
+        val secondCall = executorService.submit(call)
 
         hasPaused.await()
 
-        val thirdCall = executorService.submit(object: Callable<String?>{
-            override fun call(): String? {
-                return loadBalancer.get()
-            }
-        })
+        val thirdCall = executorService.submit(call)
 
         mayGo.countDown()
 
