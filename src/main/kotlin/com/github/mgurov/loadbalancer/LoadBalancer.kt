@@ -47,5 +47,3 @@ class RoundRobinBalancingStrategy(
         return theNextOne
    }
 }
-
-//TODO: test providers and strategies for empty lists
