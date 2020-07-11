@@ -7,6 +7,8 @@ class LoadBalancer(
         val balancingStrategy: BalancingStrategy = RandomBalancingStrategy()
 ) {
     private val providers: MutableList<Provider> = mutableListOf() //TODO: thread unsafe yet
+
+    //TODO: document up to client to ensure uniqueness of the providers.
     fun register(provider: Provider) {
         check(providers.size < capacity) {
             "Can't register more than $capacity providers"
