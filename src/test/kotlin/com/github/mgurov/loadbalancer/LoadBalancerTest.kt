@@ -5,8 +5,7 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.locks.Lock
-import java.util.concurrent.locks.ReentrantLock
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.random.Random
 
 
@@ -47,7 +46,7 @@ class LoadBalancerTest {
     @Test
     fun `should not invoke balancing strategy if no providers`() {
         val loadBalancer = LoadBalancer(balancingStrategy = object: BalancingStrategy {
-            override fun selectNext(providers: List<Provider>): Provider {
+            override fun selectNext(providers: List<LoadBalancer.ProviderStatusHolder>): LoadBalancer.ProviderStatusHolder {
                 throw RuntimeException("should've not called me")
             }
         })
@@ -135,14 +134,14 @@ class LoadBalancerTest {
     fun `should apply backpressure on exceeding requests`() {
 
         val mayGo = CountDownLatch(1) //TODO: choose between these two
-        val hasPaused = CountDownLatch(2)
+        val hasPaused = AtomicReference(CountDownLatch(2))
 
-        val loadBalancer = LoadBalancer(balancingStrategy = RoundRobinBalancingStrategy())
+        val loadBalancer = LoadBalancer(balancingStrategy = RoundRobinBalancingStrategy(), simultaneousCallSingleProviderLimit = 2)
 
         loadBalancer.register(object: Provider {
             override fun get(): String {
                 println("new call through")
-                hasPaused.countDown()
+                hasPaused.get().countDown()
                 println("awaiting")
                 mayGo.await()
                 println("may go")
@@ -168,13 +167,19 @@ class LoadBalancerTest {
 
         val secondCall = executorService.submit(call)
 
-        hasPaused.await()
+        hasPaused.get().await()
+        //hasPaused.set(CountDownLatch(1)) //reset to wait for third call to be blocked
 
         val thirdCall = executorService.submit(call)
 
+        val thirdCallShallBeShortcut = thirdCall.get()
+
+        //hasPaused.get().await()
+        println("allowing to go")
+
         mayGo.countDown()
 
-        assertThat(listOf(firstCall.get(), secondCall.get(), thirdCall.get())).containsExactly("OK", "OK", null)
+        assertThat(listOf(firstCall.get(), secondCall.get(), thirdCallShallBeShortcut)).containsExactly("OK", "OK", null)
     }
 }
 

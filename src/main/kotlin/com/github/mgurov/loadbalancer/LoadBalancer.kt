@@ -1,10 +1,12 @@
 package com.github.mgurov.loadbalancer
 
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.random.Random
 
 class LoadBalancer(
         val capacity: Int = 10, //max number of providers allowed to be registered
-        val balancingStrategy: BalancingStrategy = RandomBalancingStrategy()
+        val balancingStrategy: BalancingStrategy = RandomBalancingStrategy(),
+        val simultaneousCallSingleProviderLimit: Int = Integer.MAX_VALUE //TODO: document?
 ) {
     //TODO: volatile
     private var providers: List<ProviderStatusHolder> = listOf() //TODO: thread unsafe yet
@@ -41,21 +43,36 @@ class LoadBalancer(
 
     //TODO: describe can return null if no backing providers available
     fun get(): String? {
-        val activeProviders = providers.filter { it.status == ProviderStatus.OK }.map { it.provider }
+        //TODO: will it be OK with the timing issues?
+        val activeProviders = providers.filter { it.status == ProviderStatus.OK && it.callsInProgress.get() < simultaneousCallSingleProviderLimit }
         if (activeProviders.isEmpty()) {
             return null
         }
         //TODO: more performance effective way
-        return balancingStrategy.selectNext(activeProviders).get()
+        val providerChosen = balancingStrategy.selectNext(activeProviders)
+        return providerChosen.get()
     }
 
     //TODO: make data class with copying
-    private class ProviderStatusHolder(
+    //TODO: wrap as "provider wrapper" interface?
+    //TODO: make private parts?
+    class ProviderStatusHolder(
             val provider: Provider,
-            var status: ProviderStatus
-    )
+            var status: ProviderStatus,
+            var callsInProgress: AtomicInteger = AtomicInteger(0)
+    ) {
+        fun get(): String {
+            try {
+                println("entering " + callsInProgress.incrementAndGet())
+                return provider.get()
+            } finally {
+                println("leaving " + callsInProgress.decrementAndGet())
 
-    private enum class ProviderStatus{
+            }
+        }
+    }
+
+    enum class ProviderStatus{
         OK,
         RECOVERING,
         NOK
@@ -66,13 +83,13 @@ interface BalancingStrategy {
     /**
      * should not be called with empty list of providers
      */
-    fun selectNext(providers: List<Provider>): Provider
+    fun selectNext(providers: List<LoadBalancer.ProviderStatusHolder>): LoadBalancer.ProviderStatusHolder
 }
 
 class RandomBalancingStrategy(
         private val random: Random = Random.Default
 ): BalancingStrategy {
-    override fun selectNext(providers: List<Provider>): Provider {
+    override fun selectNext(providers: List<LoadBalancer.ProviderStatusHolder>): LoadBalancer.ProviderStatusHolder {
         return providers[random.nextInt(providers.size)] //TODO: thread unsafe re. random
     }
 }
@@ -80,7 +97,7 @@ class RandomBalancingStrategy(
 class RoundRobinBalancingStrategy(
         private var position: Int = 0
 ): BalancingStrategy {
-    override fun selectNext(providers: List<Provider>): Provider {
+    override fun selectNext(providers: List<LoadBalancer.ProviderStatusHolder>): LoadBalancer.ProviderStatusHolder {
         val theNextOne = providers[position % providers.size] //TODO: take care of the empty length
         position = (position + 1) % providers.size
         return theNextOne
