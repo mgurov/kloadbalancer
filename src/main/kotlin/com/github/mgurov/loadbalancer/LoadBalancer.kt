@@ -1,8 +1,13 @@
 package com.github.mgurov.loadbalancer
 
-class LoadBalancer {
-    private val providers: List<Provider> = mutableListOf() //TODO: thread unsafe yet
+class LoadBalancer(
+        val capacity: Int = 10 //max number of providers allowed to be registered
+) {
+    private val providers: MutableList<Provider> = mutableListOf() //TODO: thread unsafe yet
     fun register(provider: Provider) {
-        TODO("register checking the size")
+        check(providers.size < capacity) {
+            "Can't register more than $capacity providers"
+        }
+        providers += provider //TODO: thread safety
     }
 }
