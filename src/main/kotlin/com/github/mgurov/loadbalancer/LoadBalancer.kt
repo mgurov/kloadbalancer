@@ -30,3 +30,15 @@ class RandomBalancingStrategy(
         return providers[random.nextInt(providers.size)] //TODO: thread unsafe re. random
     }
 }
+
+class RoundRobinBalancingStrategy(
+        private var position: Int = 0
+): BalancingStrategy {
+    override fun selectNext(providers: List<Provider>): Provider {
+        val theNextOne = providers[position % providers.size] //TODO: take care of the empty length
+        position = position + 1 % providers.size
+        return theNextOne
+   }
+}
+
+//TODO: test providers and strategies for empty lists

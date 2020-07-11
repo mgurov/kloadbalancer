@@ -28,4 +28,16 @@ class LoadBalancerTest {
 
         assertThat(actuals).containsExactly("2", "1", "2", "2", "2", "1", "1", "1", "1", "2")
     }
+
+    @Test
+    fun `should call providers sequentially when configured with such strategy`() {
+        val loadBalancer = LoadBalancer(balancingStrategy = RoundRobinBalancingStrategy())
+        loadBalancer.register(Provider("1"))
+        loadBalancer.register(Provider("2"))
+
+        val actuals = (1..10).map { loadBalancer.get() }
+
+        assertThat(actuals).containsExactly("1", "2", "1", "2", "1", "2", "1", "2", "1", "2")
+    }
+
 }
