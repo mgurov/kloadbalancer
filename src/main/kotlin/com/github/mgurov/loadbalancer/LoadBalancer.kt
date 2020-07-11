@@ -16,6 +16,12 @@ class LoadBalancer(
         providers += provider //TODO: thread safety
     }
 
+    //TODO: document first only and by equality
+    //TODO: document returns true if unregistered false if not found
+    fun unregister(provider: Provider): Boolean {
+        return providers.remove(provider)
+    }
+
     //TODO: describe can return null if no backing providers available
     fun get(): String? {
         if (providers.isEmpty()) {

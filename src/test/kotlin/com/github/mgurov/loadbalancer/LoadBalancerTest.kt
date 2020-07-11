@@ -66,6 +66,23 @@ class LoadBalancerTest {
         //then
         assertThatCallsReturn(loadBalancer, 4, "2", "3", "1", "2")
     }
+
+    @Test
+    fun `should be possible to remove providers`() {
+
+        val loadBalancer = LoadBalancer(balancingStrategy = RoundRobinBalancingStrategy())
+        loadBalancer.register(Provider("1"))
+        val secondProvider = Provider("2")
+        loadBalancer.register(secondProvider)
+
+        assertThatCallsReturn(loadBalancer, 3, "1", "2", "1")
+
+        //when
+        assertThat(loadBalancer.unregister(secondProvider)).isTrue()
+        assertThat(loadBalancer.unregister(secondProvider)).isFalse()
+        //then
+        assertThatCallsReturn(loadBalancer, 4, "1", "1", "1", "1")
+    }
 }
 
 //TODO: fancier assertions maybe
