@@ -3,9 +3,12 @@ package com.github.mgurov.loadbalancer
 import org.assertj.core.api.Assertions
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
-import java.lang.RuntimeException
+import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.locks.Lock
+import java.util.concurrent.locks.ReentrantLock
 import kotlin.random.Random
+
 
 class LoadBalancerTest {
     @Test
@@ -127,9 +130,57 @@ class LoadBalancerTest {
 
         assertThat(loadBalancer.get()).isNull()
     }
+
+    @Test
+    fun `should apply backpressure on exceeding requests`() {
+
+        val mayGo = CountDownLatch(1) //TODO: choose between these two
+        val hasPaused = CountDownLatch(2)
+
+        val loadBalancer = LoadBalancer(balancingStrategy = RoundRobinBalancingStrategy())
+
+        loadBalancer.register(object: Provider {
+            override fun get(): String {
+                hasPaused.countDown()
+                mayGo.await()
+                return "OK"
+            }
+
+            override fun check(): Boolean {
+                return true
+            }
+        })
+
+        val executorService: ExecutorService = ThreadPoolExecutor(1, 3, 0L, TimeUnit.MILLISECONDS, LinkedBlockingQueue())
+
+        val firstCall = executorService.submit(object: Callable<String?>{
+            override fun call(): String? {
+                return loadBalancer.get()
+            }
+        })
+
+        val secondCall = executorService.submit(object: Callable<String?>{
+            override fun call(): String? {
+                return loadBalancer.get()
+            }
+        })
+
+        hasPaused.await()
+
+        val thirdCall = executorService.submit(object: Callable<String?>{
+            override fun call(): String? {
+                return loadBalancer.get()
+            }
+        })
+
+        mayGo.countDown()
+
+        assertThat(listOf(firstCall.get(), secondCall.get(), thirdCall.get())).containsExactly("OK", "OK", null)
+    }
 }
 
 //TODO: test or document provider misbehavior.
+//TODO: cover interaction between number of calls and availability
 
 //TODO: fancier assertions maybe
 private fun assertThatCallsReturn(loadBalancer: LoadBalancer, upTo: Int, vararg expected: String) {
