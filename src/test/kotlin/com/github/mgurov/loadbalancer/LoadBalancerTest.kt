@@ -83,6 +83,22 @@ class LoadBalancerTest {
         //then
         assertThatCallsReturn(loadBalancer, 4, "1", "1", "1", "1")
     }
+
+    @Test
+    fun `health check should disable unhealthy nodes`() {
+
+        val loadBalancer = LoadBalancer(balancingStrategy = RoundRobinBalancingStrategy())
+        loadBalancer.register(Provider("1"))
+        val secondProvider = Provider("2")
+        loadBalancer.register(secondProvider)
+
+        assertThatCallsReturn(loadBalancer, 3, "1", "2", "1")
+
+        //when
+        assertThat(loadBalancer.checkProvidersHealth()).isEqualTo(1)
+        //then
+        assertThatCallsReturn(loadBalancer, 4, "1", "1", "1", "1")
+    }
 }
 
 //TODO: fancier assertions maybe

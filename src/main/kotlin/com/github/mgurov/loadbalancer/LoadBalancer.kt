@@ -22,6 +22,11 @@ class LoadBalancer(
         return providers.remove(provider)
     }
 
+    //TODO: make it be executed periodically (every X sec)
+    fun checkProvidersHealth(): Int {
+        TODO()
+    }
+
     //TODO: describe can return null if no backing providers available
     fun get(): String? {
         if (providers.isEmpty()) {
