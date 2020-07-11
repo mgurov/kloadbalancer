@@ -107,6 +107,26 @@ class LoadBalancerTest {
         assertThatCallsReturn(loadBalancer, 4, "1", "2", "1", "2")
 
     }
+
+    @Test
+    fun `shouldn't call balancing strategy when no active nodes`() {
+
+        val loadBalancer = LoadBalancer(balancingStrategy = RoundRobinBalancingStrategy())
+        loadBalancer.register(object: Provider {
+            override fun get(): String {
+                throw RuntimeException("should've not even called me")
+            }
+
+            override fun check(): Boolean {
+                return false
+            }
+
+        })
+
+        loadBalancer.checkProvidersHealth()
+
+        assertThat(loadBalancer.get()).isNull()
+    }
 }
 
 //TODO: test or document provider misbehavior.

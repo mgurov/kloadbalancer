@@ -41,12 +41,12 @@ class LoadBalancer(
 
     //TODO: describe can return null if no backing providers available
     fun get(): String? {
-        if (providers.isEmpty()) {
+        val activeProviders = providers.filter { it.status == ProviderStatus.OK }.map { it.provider }
+        if (activeProviders.isEmpty()) {
             return null
         }
         //TODO: more performance effective way
-        //TODO: test for all disabled providers
-        return balancingStrategy.selectNext(providers.filter { it.status == ProviderStatus.OK }.map { it.provider }).get()
+        return balancingStrategy.selectNext(activeProviders).get()
     }
 
     //TODO: make data class with copying
