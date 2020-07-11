@@ -14,12 +14,19 @@ class LoadBalancer(
         providers += provider //TODO: thread safety
     }
 
-    fun get(): String {
+    //TODO: describe can return null if no backing providers available
+    fun get(): String? {
+        if (providers.isEmpty()) {
+            return null
+        }
         return balancingStrategy.selectNext(providers).get()
     }
 }
 
 interface BalancingStrategy {
+    /**
+     * should not be called with empty list of providers
+     */
     fun selectNext(providers: List<Provider>): Provider
 }
 

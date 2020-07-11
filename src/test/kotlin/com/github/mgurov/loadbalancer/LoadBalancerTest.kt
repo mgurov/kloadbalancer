@@ -4,6 +4,7 @@ import org.assertj.core.api.Assertions
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.SoftAssertions
 import org.junit.jupiter.api.Test
+import java.lang.RuntimeException
 import kotlin.random.Random
 
 class LoadBalancerTest {
@@ -38,6 +39,18 @@ class LoadBalancerTest {
         val actuals = (1..10).map { loadBalancer.get() }
 
         assertThat(actuals).containsExactly("1", "2", "1", "2", "1", "2", "1", "2", "1", "2")
+    }
+
+    @Test
+    fun `should not invoke balancing strategy if no providers`() {
+        val loadBalancer = LoadBalancer(balancingStrategy = object: BalancingStrategy {
+            override fun selectNext(providers: List<Provider>): Provider {
+                throw RuntimeException("should've not called me")
+            }
+
+        })
+
+        assertThat(loadBalancer.get()).isNull()
     }
 
 }
