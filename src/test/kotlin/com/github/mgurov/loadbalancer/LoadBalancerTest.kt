@@ -2,9 +2,9 @@ package com.github.mgurov.loadbalancer
 
 import org.assertj.core.api.Assertions
 import org.assertj.core.api.Assertions.assertThat
-import org.assertj.core.api.SoftAssertions
 import org.junit.jupiter.api.Test
 import java.lang.RuntimeException
+import kotlin.math.exp
 import kotlin.random.Random
 
 class LoadBalancerTest {
@@ -47,10 +47,29 @@ class LoadBalancerTest {
             override fun selectNext(providers: List<Provider>): Provider {
                 throw RuntimeException("should've not called me")
             }
-
         })
 
         assertThat(loadBalancer.get()).isNull()
     }
 
+    @Test
+    fun `should be possible to add providers`() {
+
+        val loadBalancer = LoadBalancer(balancingStrategy = RoundRobinBalancingStrategy())
+        loadBalancer.register(Provider("1"))
+        loadBalancer.register(Provider("2"))
+
+        assertThatCallsReturn(loadBalancer, 3, "1", "2", "1")
+
+        //when
+        loadBalancer.register(Provider("3"))
+        //then
+        assertThatCallsReturn(loadBalancer, 4, "2", "3", "1", "2")
+    }
+}
+
+//TODO: fancier assertions maybe
+private fun assertThatCallsReturn(loadBalancer: LoadBalancer, upTo: Int, vararg expected: String) {
+    val actuals = (1..upTo).map { loadBalancer.get() }
+    assertThat(actuals).containsExactly(*expected)
 }

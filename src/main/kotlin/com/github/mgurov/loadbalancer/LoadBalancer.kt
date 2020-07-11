@@ -43,7 +43,7 @@ class RoundRobinBalancingStrategy(
 ): BalancingStrategy {
     override fun selectNext(providers: List<Provider>): Provider {
         val theNextOne = providers[position % providers.size] //TODO: take care of the empty length
-        position = position + 1 % providers.size
+        position = (position + 1) % providers.size
         return theNextOne
    }
 }
