@@ -6,25 +6,28 @@ class LoadBalancer(
         val capacity: Int = 10, //max number of providers allowed to be registered
         val balancingStrategy: BalancingStrategy = RandomBalancingStrategy()
 ) {
-    private val providers: MutableList<Provider> = mutableListOf() //TODO: thread unsafe yet
+    //TODO: volatile
+    private var providers: List<ProviderStatus> = listOf() //TODO: thread unsafe yet
 
     //TODO: document up to client to ensure uniqueness of the providers.
     fun register(provider: Provider) {
         check(providers.size < capacity) {
             "Can't register more than $capacity providers"
         }
-        providers += provider //TODO: thread safety
+        providers = providers + ProviderStatus(provider, active = true)
     }
 
     //TODO: document first only and by equality
     //TODO: document returns true if unregistered false if not found
-    fun unregister(provider: Provider): Boolean {
-        return providers.remove(provider)
+    fun unregister(provider: Provider) {
+        providers = providers.filter { it.provider != provider }
     }
 
     //TODO: make it be executed periodically (every X sec)
-    fun checkProvidersHealth(): Int {
-        TODO()
+    fun checkProvidersHealth() {
+        providers.forEach {
+            it.active = it.provider.check()
+        }
     }
 
     //TODO: describe can return null if no backing providers available
@@ -32,8 +35,16 @@ class LoadBalancer(
         if (providers.isEmpty()) {
             return null
         }
-        return balancingStrategy.selectNext(providers).get()
+        //TODO: more performance effective way
+        //TODO: test for all disabled providers
+        return balancingStrategy.selectNext(providers.filter { it.active }.map { it.provider }).get()
     }
+
+    //TODO: make data class with copying
+    private class ProviderStatus(
+            val provider: Provider,
+            var active: Boolean
+    )
 }
 
 interface BalancingStrategy {
