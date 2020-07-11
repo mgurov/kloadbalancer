@@ -84,7 +84,7 @@ class LoadBalancerTest {
     }
 
     @Test
-    fun `health check should disable unhealthy nodes`() {
+    fun `health check should disable unhealthy nodes and enable them back after two successive OKs`() {
 
         val loadBalancer = LoadBalancer(balancingStrategy = RoundRobinBalancingStrategy())
         loadBalancer.register(TestProvider("1"))
@@ -98,6 +98,14 @@ class LoadBalancerTest {
         loadBalancer.checkProvidersHealth()
         //then
         assertThatCallsReturn(loadBalancer, 4, "1", "1", "1", "1")
+
+        //provider is getting healthy
+        secondProvider.healthy.set(true)
+        loadBalancer.checkProvidersHealth() //first check the node is still out of the active pool
+        assertThatCallsReturn(loadBalancer, 4, "1", "1", "1", "1")
+        loadBalancer.checkProvidersHealth() //second check the node is back to duty
+        assertThatCallsReturn(loadBalancer, 4, "1", "2", "1", "2")
+
     }
 }
 
