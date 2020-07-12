@@ -77,11 +77,10 @@ class LoadBalancer(
     ) {
         fun get(): String {
             try {
-                println("entering " + callsInProgress.incrementAndGet())
+                callsInProgress.incrementAndGet()
                 return provider.get()
             } finally {
-                println("leaving " + callsInProgress.decrementAndGet())
-
+                callsInProgress.decrementAndGet()
             }
         }
     }
@@ -112,8 +111,8 @@ class RoundRobinBalancingStrategy(
         private var position: Int = 0
 ): BalancingStrategy {
     override fun selectNext(providers: List<LoadBalancer.ProviderStatusHolder>): LoadBalancer.ProviderStatusHolder {
-        val theNextOne = providers[position % providers.size] //TODO: take care of the empty length
-        position = (position + 1) % providers.size
+        val theNextOne = providers[position % providers.size]
+        position = (position + 1) % providers.size //TODO: thread safety
         return theNextOne
    }
 }
