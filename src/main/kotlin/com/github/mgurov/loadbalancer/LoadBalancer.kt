@@ -95,7 +95,6 @@ class LoadBalancer(
 interface BalancingStrategy {
     /**
      * TODO: optionsCount > 0
-     * TODO: change to numbers, maybe
      */
     fun selectNextIndex(optionsCount: Int): Int
 }
