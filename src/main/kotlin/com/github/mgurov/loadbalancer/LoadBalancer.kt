@@ -1,6 +1,9 @@
 package com.github.mgurov.loadbalancer
 
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.locks.ReentrantReadWriteLock
+import kotlin.concurrent.read
+import kotlin.concurrent.write
 import kotlin.random.Random
 
 class LoadBalancer(
@@ -8,43 +11,54 @@ class LoadBalancer(
         val balancingStrategy: BalancingStrategy = RandomBalancingStrategy(),
         val simultaneousCallSingleProviderLimit: Int = Integer.MAX_VALUE //TODO: document?
 ) {
-    //TODO: volatile
+    private val lock = ReentrantReadWriteLock()
+    @Volatile //TODO: do I still need it?
     private var providers: List<ProviderStatusHolder> = listOf() //TODO: thread unsafe yet
 
     //TODO: document up to client to ensure uniqueness of the providers.
     fun register(provider: Provider) {
-        check(providers.size < capacity) {
-            "Can't register more than $capacity providers"
+        lock.write {
+            check(providers.size < capacity) {
+                "Can't register more than $capacity providers"
+            }
+            providers = providers + ProviderStatusHolder(provider, status = ProviderStatus.OK)
         }
-        providers = providers + ProviderStatusHolder(provider, status = ProviderStatus.OK)
     }
 
     //TODO: document first only and by equality
     //TODO: document returns true if unregistered false if not found
     fun unregister(provider: Provider) {
-        providers = providers.filter { it.provider != provider }
+        lock.write {
+            providers = providers.filter { it.provider != provider }
+        }
     }
 
     //TODO: make it be executed periodically (every X sec)
     //TODO: make it immutable maybe.
+    //TODO: describe since we're reading from providers, those shall stay intact
     fun checkProvidersHealth() {
-        providers.forEach {
-            if (it.provider.check()) {
-                if (it.status == ProviderStatus.NOK) {
-                    it.status = ProviderStatus.RECOVERING
+        lock.read {
+            providers.forEach {
+                if (it.provider.check()) {
+                    if (it.status == ProviderStatus.NOK) {
+                        it.status = ProviderStatus.RECOVERING
+                    } else {
+                        it.status = ProviderStatus.OK
+                    }
                 } else {
-                    it.status = ProviderStatus.OK
+                    it.status = ProviderStatus.NOK
                 }
-            } else {
-                it.status = ProviderStatus.NOK
             }
         }
     }
 
     //TODO: describe can return null if no backing providers available
+    //TODO: describe "optimistic" selection
     fun get(): String? {
         //TODO: will it be OK with the timing issues?
-        val activeProviders = providers.filter { it.status == ProviderStatus.OK && it.callsInProgress.get() < simultaneousCallSingleProviderLimit }
+        val activeProviders = lock.read {
+            providers.filter { it.status == ProviderStatus.OK && it.callsInProgress.get() < simultaneousCallSingleProviderLimit }
+        }
         if (activeProviders.isEmpty()) {
             return null
         }
