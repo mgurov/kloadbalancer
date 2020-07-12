@@ -46,7 +46,7 @@ class LoadBalancerTest {
     @Test
     fun `should not invoke balancing strategy if no providers`() {
         val loadBalancer = LoadBalancer(balancingStrategy = object: BalancingStrategy {
-            override fun selectNext(providers: List<LoadBalancer.ProviderStatusHolder>): LoadBalancer.ProviderStatusHolder {
+            override fun selectNextIndex(count: Int): Int {
                 throw RuntimeException("should've not called me")
             }
         })

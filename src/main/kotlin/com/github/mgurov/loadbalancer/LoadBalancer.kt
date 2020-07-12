@@ -63,8 +63,8 @@ class LoadBalancer(
             return null
         }
         //TODO: more performance effective way
-        val providerChosen = balancingStrategy.selectNext(activeProviders)
-        return providerChosen.get()
+        val chosenProviderIndex = balancingStrategy.selectNextIndex(activeProviders.size)
+        return activeProviders[chosenProviderIndex].get()
     }
 
     //TODO: make data class with copying
@@ -94,25 +94,27 @@ class LoadBalancer(
 
 interface BalancingStrategy {
     /**
-     * should not be called with empty list of providers
+     * TODO: optionsCount > 0
+     * TODO: change to numbers, maybe
      */
-    fun selectNext(providers: List<LoadBalancer.ProviderStatusHolder>): LoadBalancer.ProviderStatusHolder
+    fun selectNextIndex(optionsCount: Int): Int
 }
 
 class RandomBalancingStrategy(
         private val random: Random = Random.Default
 ): BalancingStrategy {
-    override fun selectNext(providers: List<LoadBalancer.ProviderStatusHolder>): LoadBalancer.ProviderStatusHolder {
-        return providers[random.nextInt(providers.size)] //TODO: thread unsafe re. random
+    override fun selectNextIndex(optionsCount: Int): Int {
+        return random.nextInt(optionsCount) //TODO: thread unsafe re. random
     }
 }
 
+//TODO: describe simplified approach and when we'd want to use a more complicated - when want to real track which was previous and not.
 class RoundRobinBalancingStrategy(
         private var position: Int = 0
 ): BalancingStrategy {
-    override fun selectNext(providers: List<LoadBalancer.ProviderStatusHolder>): LoadBalancer.ProviderStatusHolder {
-        val theNextOne = providers[position % providers.size]
-        position = (position + 1) % providers.size //TODO: thread safety
+    override fun selectNextIndex(optionsCount: Int): Int {
+        val theNextOne = position % optionsCount
+        position = (position + 1) % optionsCount //TODO: thread safety
         return theNextOne
    }
 }
