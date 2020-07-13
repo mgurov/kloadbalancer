@@ -146,7 +146,8 @@ class LoadBalancer(
 
         fun check() {
             status = if (provider.check()) {
-                //TODO: timing shijt.
+                //In a high contention environment, we might've considered to sync the status update more strongly,
+                //but in the current setup the checks are executed sequentially upon a timer normally set to seconds
                 if (status == ProviderStatus.NOK) {
                     ProviderStatus.RECOVERING
                 } else {
@@ -184,7 +185,7 @@ class RandomBalancingStrategy(
     }
 }
 
-//TODO: describe simplified approach and when we'd want to use a more complicated - when want to real track which was previous and not.
+// a simplified RoundRobin that doesn't track the changes in the list of the available nodes
 class RoundRobinBalancingStrategy(
         private var position: Int = 0
 ): BalancingStrategy {
