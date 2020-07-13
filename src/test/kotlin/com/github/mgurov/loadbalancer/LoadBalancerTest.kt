@@ -185,6 +185,7 @@ class LoadBalancerTest {
 
 //TODO: test or document provider misbehavior.
 //TODO: cover interaction between number of calls and availability
+//TODO: test volatility
 
 //TODO: fancier assertions maybe
 private fun assertThatCallsReturn(loadBalancer: LoadBalancer, upTo: Int, vararg expected: String) {
