@@ -5,6 +5,7 @@ import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatIllegalStateException
 import org.junit.jupiter.api.Test
 import java.time.Duration
+import java.time.Instant
 import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
@@ -118,6 +119,7 @@ class LoadBalancerTest {
 
         val healthChecked = AtomicInteger()
         val loadBalancer = LoadBalancer()
+        val start = System.nanoTime()
         loadBalancer.register(object: Provider {
             override fun get(): String {
                 TODO("Not yet implemented")
@@ -132,11 +134,12 @@ class LoadBalancerTest {
         loadBalancer.startHealthChecking(Duration.ofMillis(100))
         TimeUnit.MILLISECONDS.sleep(900)
         loadBalancer.stopHealthChecking()
-        assertThat(healthChecked.get()).isBetween(8, 9) //TODO: document why between\
+        assertThat(healthChecked.get()).isBetween(9, 11) //TODO: document why between
 
         //and there's no further checks
-        TimeUnit.MILLISECONDS.sleep(300)
-        assertThat(healthChecked.get()).isBetween(8, 9) //TODO: document why between
+        healthChecked.set(0)
+        TimeUnit.MILLISECONDS.sleep(900)
+        assertThat(healthChecked.get()).isEqualTo(0)
     }
 
     @Test
