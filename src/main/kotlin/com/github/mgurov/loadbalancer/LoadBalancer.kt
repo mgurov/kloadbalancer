@@ -1,8 +1,10 @@
 package com.github.mgurov.loadbalancer
 
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.locks.ReentrantLock
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.read
+import kotlin.concurrent.withLock
 import kotlin.concurrent.write
 import kotlin.random.Random
 
@@ -12,6 +14,7 @@ class LoadBalancer(
         val simultaneousCallSingleProviderLimit: Int = Integer.MAX_VALUE //TODO: document?
 ) {
     private val lock = ReentrantReadWriteLock()
+    private val pickerLock = ReentrantLock()
     @Volatile //TODO: do I still need it?
     private var providers: List<ProviderStatusHolder> = listOf() //TODO: thread unsafe yet
 
@@ -63,7 +66,9 @@ class LoadBalancer(
             return null
         }
         //TODO: more performance effective way
-        val chosenProviderIndex = balancingStrategy.selectNextIndex(activeProviders.size)
+        val chosenProviderIndex = pickerLock.withLock {
+            balancingStrategy.selectNextIndex(activeProviders.size)
+        }
         return activeProviders[chosenProviderIndex].get()
     }
 
@@ -92,6 +97,7 @@ class LoadBalancer(
     }
 }
 
+//TODO: describe supposed to be called serially
 interface BalancingStrategy {
     /**
      * TODO: optionsCount > 0
@@ -113,7 +119,9 @@ class RoundRobinBalancingStrategy(
 ): BalancingStrategy {
     override fun selectNextIndex(optionsCount: Int): Int {
         val theNextOne = position % optionsCount
-        position = (position + 1) % optionsCount //TODO: thread safety
+        position = (position + 1) % optionsCount
         return theNextOne
    }
 }
+
+//TODO: mention potential performance benefit of lambda's
