@@ -37,7 +37,6 @@ class LoadBalancer(
     }
 
     //TODO: make it be executed periodically (every X sec)
-    //TODO: make it immutable maybe.
     //TODO: describe since we're reading from providers, those shall stay intact
     fun checkProvidersHealth() {
         lock.read {
