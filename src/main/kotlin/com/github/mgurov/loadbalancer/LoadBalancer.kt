@@ -15,10 +15,11 @@ import kotlin.random.Random
 class LoadBalancer(
         val capacity: Int = 10, //max number of providers allowed to be registered
         val balancingStrategy: BalancingStrategy = RandomBalancingStrategy(),
-        val simultaneousCallSingleProviderLimit: Int = Integer.MAX_VALUE //TODO: document?
+        val simultaneousCallSingleProviderLimit: Int? = null //TODO: document? + on high values can exceed max int.
 ) {
     private val lock = ReentrantReadWriteLock()
     private val pickerLock = ReentrantLock()
+    private val pendingCalls = AtomicInteger()
     @Volatile //TODO: do I still need it?
     private var providers: List<ProviderStatusHolder> = listOf() //TODO: thread unsafe yet
 
@@ -71,20 +72,36 @@ class LoadBalancer(
      *
      *  TODO: fix the timing issues.
      *
+     *  TODO: throw exceptions.
+     *
      */
     fun get(): String? {
+
         //TODO: will it be OK with the timing issues?
         val activeProviders = lock.read {
-            providers.filter { it.status == ProviderStatus.OK && it.callsInProgress.get() < simultaneousCallSingleProviderLimit }
+            providers.filter { it.status == ProviderStatus.OK }
         }
         if (activeProviders.isEmpty()) {
             return null
         }
-        //TODO: more performance effective way
-        val chosenProviderIndex = pickerLock.withLock {
-            balancingStrategy.selectNextIndex(activeProviders.size)
+
+        val newPendingCallsCount = pendingCalls.incrementAndGet()
+
+        try {
+            if (simultaneousCallSingleProviderLimit != null && newPendingCallsCount > simultaneousCallSingleProviderLimit * activeProviders.size) {
+                return null; // TODO: backpressure exception?
+            }
+
+            val chosenProviderIndex = pickerLock.withLock {
+                balancingStrategy.selectNextIndex(activeProviders.size)
+            }
+
+            //TODO: handle exceptions here.
+            return activeProviders[chosenProviderIndex].get()
+
+        } finally {
+            pendingCalls.decrementAndGet()
         }
-        return activeProviders[chosenProviderIndex].get()
     }
 
     val healthCheckExecutor = AtomicReference<ScheduledThreadPoolExecutor?>(null)
@@ -110,16 +127,10 @@ class LoadBalancer(
     class ProviderStatusHolder(
             val provider: Provider,
             @Volatile
-            var status: ProviderStatus,
-            var callsInProgress: AtomicInteger = AtomicInteger(0)
+            var status: ProviderStatus
     ) {
         fun get(): String {
-            try {
-                callsInProgress.incrementAndGet()
-                return provider.get()
-            } finally {
-                callsInProgress.decrementAndGet()
-            }
+            return provider.get()
         }
 
         fun check() {
