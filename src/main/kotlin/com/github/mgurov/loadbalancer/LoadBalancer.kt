@@ -40,6 +40,8 @@ class LoadBalancer(
 
     /**
      * `unregister` removes the specified provider from the LoadBalancer based on equality.
+     *
+     *  There might be pending or even (for a brief period time) new requests to the removed provider after this method returns.
      */
     fun unregister(provider: Provider) {
         lock.write {
