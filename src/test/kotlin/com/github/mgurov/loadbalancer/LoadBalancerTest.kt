@@ -194,13 +194,11 @@ class LoadBalancerTest {
 
         val executorService: ExecutorService = ThreadPoolExecutor(3, 3, 0L, TimeUnit.MILLISECONDS, LinkedBlockingQueue())
 
-        val call = object : Callable<String?> {
-            override fun call(): String? {
-                println("starting call")
-                val result = loadBalancer.get()
-                println("got result $result")
-                return result
-            }
+        val call = Callable {
+            println("starting call")
+            val result = loadBalancer.get()
+            println("got result $result")
+            result
         }
         val firstCall = executorService.submit(call)
 
