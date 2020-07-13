@@ -103,28 +103,29 @@ class LoadBalancer(
         lock.read {
             providers.toList() //make a copy to avoid calling `check` of a potentially misbehaving provider within a lock
         }.forEach {
-            //a grossly misbehaving check can still impede our health checking. To prevent this, we could've
+            //a grossly misbehaving provider check implementation can still impede our health checking. To prevent this, we could've
             //performed the checks parallel, marking providers timed-out on check as unhealthy.
             it.check()
         }
     }
 
-    private val healthCheckExecutor = AtomicReference<ScheduledThreadPoolExecutor?>(null)
+    private val healthCheckTimer = AtomicReference<ScheduledThreadPoolExecutor?>(null)
 
     fun startHealthChecking(period: Duration) {
-        healthCheckExecutor.getAndUpdate { previousState ->
+        healthCheckTimer.getAndUpdate { previousState ->
             if (previousState != null) {
                 throw IllegalStateException("The health check is already running")
             }
             val newHealthCheckExecutor = ScheduledThreadPoolExecutor(1)
+            //technically, the line below produces a "weak" side-effect in a form of a scheduled job - which is warned against by java.util.concurrent.atomic.AtomicReference.getAndUpdate
+            //but practically that shouldn't be a problem since the start/stop of the health check timer isn't supposed to be happening frequent on a given LB
             newHealthCheckExecutor.scheduleAtFixedRate({this.checkProvidersHealth()}, 0L, period.toNanos(), TimeUnit.NANOSECONDS)
-            //TODO: document it's not completely side-effect free, but that shouldn't matter realistically.
             newHealthCheckExecutor
         }
     }
 
     fun stopHealthChecking(awaitTermination: Duration = Duration.ofHours(1)) {
-        healthCheckExecutor.getAndUpdate {
+        healthCheckTimer.getAndUpdate {
             it?.shutdown();
             it?.awaitTermination(awaitTermination.toNanos(), TimeUnit.NANOSECONDS);
             null
