@@ -50,7 +50,7 @@ class LoadBalancerTest {
     @Test
     fun `should not invoke balancing strategy if no providers`() {
         val loadBalancer = LoadBalancer(balancingStrategy = object: BalancingStrategy {
-            override fun selectNextIndex(count: Int): Int {
+            override fun selectNextIndex(optionsCount: Int): Int {
                 throw RuntimeException("should've not called me")
             }
         })
@@ -119,7 +119,6 @@ class LoadBalancerTest {
 
         val healthChecked = AtomicInteger()
         val loadBalancer = LoadBalancer()
-        val start = System.nanoTime()
         loadBalancer.register(object: Provider {
             override fun get(): String {
                 TODO("Not yet implemented")

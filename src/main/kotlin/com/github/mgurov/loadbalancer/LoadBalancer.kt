@@ -23,8 +23,11 @@ class LoadBalancer(
     @Volatile //TODO: do I still need it?
     private var providers: List<ProviderStatusHolder> = listOf() //TODO: thread unsafe yet
 
-    //TODO: document up to client to ensure uniqueness of the providers.
-    //TODO: document assumes infrequent modifications
+    /**
+     * `register` adds a new provider to the LoadBalancer.
+     *
+     *  No checks are performed to ensure uniqueness of the providers specified - this is a caller's concern.
+     */
     fun register(provider: Provider) {
         lock.write {
             check(providers.size < capacity) {
@@ -34,23 +37,12 @@ class LoadBalancer(
         }
     }
 
-    //TODO: document first only and by equality
-    //TODO: document returns true if unregistered false if not found
-    //TODO: document I'd rather have a provider ID.
+    /**
+     * `unregister` removes the specified provider from the LoadBalancer based on equality.
+     */
     fun unregister(provider: Provider) {
         lock.write {
             providers = providers.filter { it.provider != provider }
-        }
-    }
-
-    //TODO: make it be executed periodically (every X sec)
-    //TODO: describe since we're reading from providers, those shall stay intact
-    //TODO: mention single thread
-    fun checkProvidersHealth() {
-        lock.read {
-            providers.forEach {
-                it.check()
-            }
         }
     }
 
@@ -107,7 +99,17 @@ class LoadBalancer(
         }
     }
 
-    val healthCheckExecutor = AtomicReference<ScheduledThreadPoolExecutor?>(null)
+    //TODO: describe since we're reading from providers, those shall stay intact
+    //TODO: mention single thread
+    internal fun checkProvidersHealth() {
+        lock.read {
+            providers.forEach {
+                it.check()
+            }
+        }
+    }
+
+    private val healthCheckExecutor = AtomicReference<ScheduledThreadPoolExecutor?>(null)
 
     fun startHealthChecking(period: Duration) {
         healthCheckExecutor.getAndUpdate { previousState ->
@@ -129,10 +131,7 @@ class LoadBalancer(
         }
     }
 
-    //TODO: make data class with copying
-    //TODO: wrap as "provider wrapper" interface?
-    //TODO: make private parts?
-    class ProviderStatusHolder(
+    private class ProviderStatusHolder(
             val provider: Provider,
             @Volatile
             var status: ProviderStatus
@@ -143,6 +142,7 @@ class LoadBalancer(
 
         fun check() {
             status = if (provider.check()) {
+                //TODO: timing shijt.
                 if (status == ProviderStatus.NOK) {
                     ProviderStatus.RECOVERING
                 } else {
