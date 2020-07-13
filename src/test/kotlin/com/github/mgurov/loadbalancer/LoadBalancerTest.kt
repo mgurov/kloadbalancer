@@ -5,13 +5,11 @@ import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatIllegalStateException
 import org.junit.jupiter.api.Test
 import java.time.Duration
-import java.time.Instant
 import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
-import kotlin.random.Random
-
+import java.util.Random
 
 class LoadBalancerTest {
     @Test
@@ -27,13 +25,14 @@ class LoadBalancerTest {
 
     @Test
     fun `should call random providers when configured with such strategy`() {
-        val loadBalancer = LoadBalancer(balancingStrategy = RandomBalancingStrategy(Random(0L)))
+        val seededRandom = Random(0L)
+        val loadBalancer = LoadBalancer(balancingStrategy = RandomBalancingStrategy {seededRandom})
         loadBalancer.register(TestProvider("1"))
         loadBalancer.register(TestProvider("2"))
 
         val actuals = (1..10).map { loadBalancer.get() }
 
-        assertThat(actuals).containsExactly("2", "1", "2", "2", "2", "1", "1", "1", "1", "2")
+        assertThat(actuals).containsExactly("2", "2", "1", "2", "2", "1", "2", "1", "2", "2")
     }
 
     @Test
@@ -135,7 +134,7 @@ class LoadBalancerTest {
         loadBalancer.stopHealthChecking()
         assertThat(healthChecked.get()).isBetween(9, 11) //TODO: document why between
 
-        //and there's no further checks
+        //and there're no further checks
         healthChecked.set(0)
         TimeUnit.MILLISECONDS.sleep(900)
         assertThat(healthChecked.get()).isEqualTo(0)

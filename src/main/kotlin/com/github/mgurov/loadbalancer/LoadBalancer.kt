@@ -2,6 +2,7 @@ package com.github.mgurov.loadbalancer
 
 import java.time.Duration
 import java.util.concurrent.ScheduledThreadPoolExecutor
+import java.util.concurrent.ThreadLocalRandom
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
@@ -10,7 +11,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.read
 import kotlin.concurrent.withLock
 import kotlin.concurrent.write
-import kotlin.random.Random
+import java.util.Random
 
 class LoadBalancer(
         val capacity: Int = 10, //max number of providers allowed to be registered
@@ -51,11 +52,13 @@ class LoadBalancer(
     /**
      *  `get` returns the response of one of the active providers, determined by the balancingStrategy.
      *
-     *  Active provider is a provider that is registered, healthy and doesn't have the number of the pending calls exceeding the simultaneousCallSingleProviderLimit
+     *  Active provider is a provider that is registered and healthy.
      *
      *  Successfull call always returns non-null value.
      *
      *  `null` is returned when no active providers are available.
+     *
+     *  `null` is also returned when the number of calls exceeds simultaneousCallSingleProviderLimit * number of active providers.
      *
      *  Possible exceptions thrown by providers aren't handled and are supposed to be handled by the callers of the method.
      *
@@ -64,7 +67,7 @@ class LoadBalancer(
      *
      *  It's possible that a just unregister provider would still receive a new call.
      *
-     *  TODO: throw exceptions.
+     *  TODO: throw and wrap exceptions.
      *
      */
     fun get(): String? {
@@ -162,19 +165,22 @@ class LoadBalancer(
     }
 }
 
-//TODO: describe supposed to be called serially
 interface BalancingStrategy {
     /**
-     * TODO: optionsCount > 0
+     * selectNextIndex should return the 0-based index of the next option (Provider) based on the strategy.
+     *
+     * The strategy may keep a state between the invocations.
+     *
+     * The invocations are supposed to be serialized by the caller, e.g. no two simultaneous calls would be made from different threads.
      */
     fun selectNextIndex(optionsCount: Int): Int
 }
 
 class RandomBalancingStrategy(
-        private val random: Random = Random.Default
+        private val randomSupplier: () -> Random = ThreadLocalRandom::current
 ): BalancingStrategy {
     override fun selectNextIndex(optionsCount: Int): Int {
-        return random.nextInt(optionsCount) //TODO: thread unsafe re. random
+        return randomSupplier().nextInt(optionsCount)
     }
 }
 
@@ -190,3 +196,4 @@ class RoundRobinBalancingStrategy(
 }
 
 //TODO: mention potential performance benefit of lambda's
+//TODO: read on the thread barriers.
