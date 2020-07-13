@@ -70,14 +70,15 @@ class LoadBalancer(
      *  In the real implementation, a hierarchy of exceptions or an Either object would've been used to indicate a kind of a problem
      *  encountered, potentially imposing certain error reporting expectations on the Provider interface contract.
      *
-     *  TODO: fix the timing issues.
+     *  It's possible that a just unregister provider would still receive a new call.
      *
      *  TODO: throw exceptions.
      *
      */
     fun get(): String? {
 
-        //TODO: will it be OK with the timing issues?
+        //The read lock is very limited to avoid having the selected provider's `.get()` invoked from within the lock, since
+        //the providers aren't controlled and a slow responding one may compromise the performance of the whole load balancer.
         val activeProviders = lock.read {
             providers.filter { it.status == ProviderStatus.OK }
         }
@@ -95,9 +96,11 @@ class LoadBalancer(
             val chosenProviderIndex = pickerLock.withLock {
                 balancingStrategy.selectNextIndex(activeProviders.size)
             }
+            val chosenProvider = activeProviders[chosenProviderIndex]
 
             //TODO: handle exceptions here.
-            return activeProviders[chosenProviderIndex].get()
+            //The call below can be potentially unstable - avoid potentially blocking locks.
+            return chosenProvider.get()
 
         } finally {
             pendingCalls.decrementAndGet()
