@@ -99,13 +99,13 @@ class LoadBalancer(
         }
     }
 
-    //TODO: describe since we're reading from providers, those shall stay intact
-    //TODO: mention single thread
     internal fun checkProvidersHealth() {
         lock.read {
-            providers.forEach {
-                it.check()
-            }
+            providers.toList() //make a copy to avoid calling `check` of a potentially misbehaving provider within a lock
+        }.forEach {
+            //a grossly misbehaving check can still impede our health checking. To prevent this, we could've
+            //performed the checks parallel, marking providers timed-out on check as unhealthy.
+            it.check()
         }
     }
 
