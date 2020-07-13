@@ -1,10 +1,10 @@
 package com.github.mgurov.loadbalancer
 
 import java.time.Duration
-import java.util.*
 import java.util.concurrent.ScheduledThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.ReentrantLock
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.read
@@ -71,20 +71,21 @@ class LoadBalancer(
     }
 
 
-    //TODO: sync
-    var healthCheckExecutor: ScheduledThreadPoolExecutor? = null
+    val healthCheckExecutor = AtomicReference<ScheduledThreadPoolExecutor?>(null)
 
-    fun startHealthChecking(ofMillis: Duration) {
-        //TODO: reject if already one
-        val newHealthCheckExecutor = ScheduledThreadPoolExecutor(1)
-        newHealthCheckExecutor.scheduleAtFixedRate({this.checkProvidersHealth()}, 0L, ofMillis.toNanos(), TimeUnit.NANOSECONDS)
-        healthCheckExecutor = newHealthCheckExecutor
+    fun startHealthChecking(period: Duration) {
+        healthCheckExecutor.getAndUpdate { previousState ->
+            if (previousState != null) {
+                throw IllegalStateException("The health check is already running")
+            }
+            val newHealthCheckExecutor = ScheduledThreadPoolExecutor(1)
+            newHealthCheckExecutor.scheduleAtFixedRate({this.checkProvidersHealth()}, 0L, period.toNanos(), TimeUnit.NANOSECONDS)
+            newHealthCheckExecutor
+        }
     }
 
-    fun stopHealthChecking() {
-        //TODO: sync
-        healthCheckExecutor?.shutdown()
-        healthCheckExecutor = null
+    fun stopHealthChecking(awaitTermination: Duration = Duration.ofHours(1)) {
+        healthCheckExecutor.getAndUpdate { it?.shutdown(); it?.awaitTermination(awaitTermination.toNanos(), TimeUnit.NANOSECONDS); null }
     }
 
     //TODO: make data class with copying

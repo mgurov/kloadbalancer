@@ -2,6 +2,7 @@ package com.github.mgurov.loadbalancer
 
 import org.assertj.core.api.Assertions
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatIllegalStateException
 import org.junit.jupiter.api.Test
 import java.time.Duration
 import java.util.concurrent.*
@@ -136,6 +137,16 @@ class LoadBalancerTest {
         //and there's no further checks
         TimeUnit.MILLISECONDS.sleep(300)
         assertThat(healthChecked.get()).isBetween(8, 9) //TODO: document why between
+    }
+
+    @Test
+    fun `should not allow subsequent checking start`() {
+
+        val loadBalancer = LoadBalancer()
+        loadBalancer.startHealthChecking(Duration.ofMillis(100))
+        assertThatIllegalStateException().isThrownBy {
+            loadBalancer.startHealthChecking(Duration.ofMillis(100))
+        }
     }
 
     @Test
