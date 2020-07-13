@@ -1,5 +1,6 @@
 package com.github.mgurov.loadbalancer
 
+import java.time.Duration
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.locks.ReentrantLock
 import java.util.concurrent.locks.ReentrantReadWriteLock
@@ -64,6 +65,14 @@ class LoadBalancer(
             balancingStrategy.selectNextIndex(activeProviders.size)
         }
         return activeProviders[chosenProviderIndex].get()
+    }
+
+    fun startHealthChecking(ofMillis: Duration) {
+        TODO("Not yet implemented")
+    }
+
+    fun stopHealthChecking() {
+        TODO("Not yet implemented")
     }
 
     //TODO: make data class with copying

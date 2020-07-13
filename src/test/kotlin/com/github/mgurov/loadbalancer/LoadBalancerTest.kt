@@ -3,8 +3,10 @@ package com.github.mgurov.loadbalancer
 import org.assertj.core.api.Assertions
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
+import java.time.Duration
 import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.random.Random
 
@@ -107,6 +109,29 @@ class LoadBalancerTest {
         assertThatCallsReturn(loadBalancer, 4, "1", "1", "1", "1")
         loadBalancer.checkProvidersHealth() //second check the node is back to duty
         assertThatCallsReturn(loadBalancer, 4, "1", "2", "1", "2")
+
+    }
+
+    @Test
+    fun `should do the health check every once in a while in the background`() {
+
+        val healthChecked = AtomicInteger()
+        val loadBalancer = LoadBalancer()
+        loadBalancer.register(object: Provider {
+            override fun get(): String {
+                TODO("Not yet implemented")
+            }
+
+            override fun check(): Boolean {
+                healthChecked.incrementAndGet()
+                return true
+            }
+        })
+
+        loadBalancer.startHealthChecking(Duration.ofMillis(100))
+        TimeUnit.MILLISECONDS.sleep(900)
+        loadBalancer.stopHealthChecking()
+        assertThat(healthChecked.get()).isBetween(8, 9) //TODO: document why between
 
     }
 
