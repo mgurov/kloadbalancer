@@ -119,7 +119,11 @@ class LoadBalancer(
     }
 
     fun stopHealthChecking(awaitTermination: Duration = Duration.ofHours(1)) {
-        healthCheckExecutor.getAndUpdate { it?.shutdown(); it?.awaitTermination(awaitTermination.toNanos(), TimeUnit.NANOSECONDS); null }
+        healthCheckExecutor.getAndUpdate {
+            it?.shutdown();
+            it?.awaitTermination(awaitTermination.toNanos(), TimeUnit.NANOSECONDS);
+            null
+        }
     }
 
     //TODO: make data class with copying
