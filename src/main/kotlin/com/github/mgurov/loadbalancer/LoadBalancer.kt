@@ -31,6 +31,7 @@ class LoadBalancer(
 
     //TODO: document first only and by equality
     //TODO: document returns true if unregistered false if not found
+    //TODO: document I'd rather have a provider ID.
     fun unregister(provider: Provider) {
         lock.write {
             providers = providers.filter { it.provider != provider }
