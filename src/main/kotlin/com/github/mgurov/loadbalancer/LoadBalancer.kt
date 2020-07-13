@@ -55,6 +55,23 @@ class LoadBalancer(
 
     //TODO: describe can return null if no backing providers available
     //TODO: describe "optimistic" selection
+    /**
+     *  `get` returns the response of one of the active providers, determined by the balancingStrategy.
+     *
+     *  Active provider is a provider that is registered, healthy and doesn't have the number of the pending calls exceeding the simultaneousCallSingleProviderLimit
+     *
+     *  Successfull call always returns non-null value.
+     *
+     *  `null` is returned when no active providers are available.
+     *
+     *  Possible exceptions thrown by providers aren't handled and are supposed to be handled by the callers of the method.
+     *
+     *  In the real implementation, a hierarchy of exceptions or an Either object would've been used to indicate a kind of a problem
+     *  encountered, potentially imposing certain error reporting expectations on the Provider interface contract.
+     *
+     *  TODO: fix the timing issues.
+     *
+     */
     fun get(): String? {
         //TODO: will it be OK with the timing issues?
         val activeProviders = lock.read {
@@ -69,7 +86,6 @@ class LoadBalancer(
         }
         return activeProviders[chosenProviderIndex].get()
     }
-
 
     val healthCheckExecutor = AtomicReference<ScheduledThreadPoolExecutor?>(null)
 
