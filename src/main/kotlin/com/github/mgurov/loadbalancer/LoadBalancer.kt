@@ -113,6 +113,7 @@ class LoadBalancer(
             }
             val newHealthCheckExecutor = ScheduledThreadPoolExecutor(1)
             newHealthCheckExecutor.scheduleAtFixedRate({this.checkProvidersHealth()}, 0L, period.toNanos(), TimeUnit.NANOSECONDS)
+            //TODO: document it's not completely side-effect free, but that shouldn't matter realistically.
             newHealthCheckExecutor
         }
     }
