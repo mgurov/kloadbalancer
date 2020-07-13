@@ -131,8 +131,11 @@ class LoadBalancerTest {
         loadBalancer.startHealthChecking(Duration.ofMillis(100))
         TimeUnit.MILLISECONDS.sleep(900)
         loadBalancer.stopHealthChecking()
-        assertThat(healthChecked.get()).isBetween(8, 9) //TODO: document why between
+        assertThat(healthChecked.get()).isBetween(8, 9) //TODO: document why between\
 
+        //and there's no further checks
+        TimeUnit.MILLISECONDS.sleep(300)
+        assertThat(healthChecked.get()).isBetween(8, 9) //TODO: document why between
     }
 
     @Test

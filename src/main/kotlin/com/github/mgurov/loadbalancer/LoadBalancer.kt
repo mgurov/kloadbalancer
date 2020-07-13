@@ -1,6 +1,9 @@
 package com.github.mgurov.loadbalancer
 
 import java.time.Duration
+import java.util.*
+import java.util.concurrent.ScheduledThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.locks.ReentrantLock
 import java.util.concurrent.locks.ReentrantReadWriteLock
@@ -67,12 +70,21 @@ class LoadBalancer(
         return activeProviders[chosenProviderIndex].get()
     }
 
+
+    //TODO: sync
+    var healthCheckExecutor: ScheduledThreadPoolExecutor? = null
+
     fun startHealthChecking(ofMillis: Duration) {
-        TODO("Not yet implemented")
+        //TODO: reject if already one
+        val newHealthCheckExecutor = ScheduledThreadPoolExecutor(1)
+        newHealthCheckExecutor.scheduleAtFixedRate({this.checkProvidersHealth()}, 0L, ofMillis.toNanos(), TimeUnit.NANOSECONDS)
+        healthCheckExecutor = newHealthCheckExecutor
     }
 
     fun stopHealthChecking() {
-        TODO("Not yet implemented")
+        //TODO: sync
+        healthCheckExecutor?.shutdown()
+        healthCheckExecutor = null
     }
 
     //TODO: make data class with copying
