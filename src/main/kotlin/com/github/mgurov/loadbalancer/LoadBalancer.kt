@@ -19,6 +19,7 @@ class LoadBalancer(
     private var providers: List<ProviderStatusHolder> = listOf() //TODO: thread unsafe yet
 
     //TODO: document up to client to ensure uniqueness of the providers.
+    //TODO: document assumes infrequent modifications
     fun register(provider: Provider) {
         lock.write {
             check(providers.size < capacity) {
@@ -38,18 +39,11 @@ class LoadBalancer(
 
     //TODO: make it be executed periodically (every X sec)
     //TODO: describe since we're reading from providers, those shall stay intact
+    //TODO: mention single thread
     fun checkProvidersHealth() {
         lock.read {
             providers.forEach {
-                if (it.provider.check()) {
-                    if (it.status == ProviderStatus.NOK) {
-                        it.status = ProviderStatus.RECOVERING
-                    } else {
-                        it.status = ProviderStatus.OK
-                    }
-                } else {
-                    it.status = ProviderStatus.NOK
-                }
+                it.check()
             }
         }
     }
@@ -76,6 +70,7 @@ class LoadBalancer(
     //TODO: make private parts?
     class ProviderStatusHolder(
             val provider: Provider,
+            @Volatile
             var status: ProviderStatus,
             var callsInProgress: AtomicInteger = AtomicInteger(0)
     ) {
@@ -85,6 +80,18 @@ class LoadBalancer(
                 return provider.get()
             } finally {
                 callsInProgress.decrementAndGet()
+            }
+        }
+
+        fun check() {
+            status = if (provider.check()) {
+                if (status == ProviderStatus.NOK) {
+                    ProviderStatus.RECOVERING
+                } else {
+                    ProviderStatus.OK
+                }
+            } else {
+                ProviderStatus.NOK
             }
         }
     }
