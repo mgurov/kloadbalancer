@@ -24,7 +24,7 @@ class LoadBalancerTest {
     @Test
     fun `should call random providers when configured with such strategy`() {
         val seededRandom = Random(0L)
-        val loadBalancer = LoadBalancer(balancingStrategy = RandomBalancingStrategy {seededRandom})
+        val loadBalancer = LoadBalancer(balancingStrategy = RandomBalancingStrategy { seededRandom })
         loadBalancer.register(TestProvider("1"))
         loadBalancer.register(TestProvider("2"))
 
@@ -53,6 +53,7 @@ class LoadBalancerTest {
             override fun get(): String? {
                 throw expectedCause
             }
+
             override fun check() = true
         })
 
@@ -63,7 +64,7 @@ class LoadBalancerTest {
 
     @Test
     fun `should not invoke balancing strategy if no providers`() {
-        val loadBalancer = LoadBalancer(balancingStrategy = object: BalancingStrategy {
+        val loadBalancer = LoadBalancer(balancingStrategy = object : BalancingStrategy {
             override fun selectNextIndex(optionsCount: Int): Int {
                 throw RuntimeException("should've not called me")
             }
@@ -135,7 +136,7 @@ class LoadBalancerTest {
 
         val healthChecked = AtomicInteger()
         val loadBalancer = LoadBalancer()
-        loadBalancer.register(object: Provider {
+        loadBalancer.register(object : Provider {
             override fun get(): String? {
                 TODO("Not yet implemented")
             }
@@ -171,7 +172,7 @@ class LoadBalancerTest {
     fun `shouldn't call balancing strategy when no active nodes`() {
 
         val loadBalancer = LoadBalancer(balancingStrategy = RoundRobinBalancingStrategy())
-        loadBalancer.register(object: Provider {
+        loadBalancer.register(object : Provider {
             override fun get(): String? {
                 throw RuntimeException("should've not even called me")
             }
@@ -197,7 +198,7 @@ class LoadBalancerTest {
 
         val loadBalancer = LoadBalancer(balancingStrategy = RoundRobinBalancingStrategy(), simultaneousCallSingleProviderLimit = 2)
 
-        loadBalancer.register(object: Provider {
+        loadBalancer.register(object : Provider {
             override fun get(): String? {
                 hasPaused.get().countDown()
                 mayGo.await()
@@ -240,7 +241,7 @@ private fun assertThatCallsReturn(loadBalancer: LoadBalancer, upTo: Int, vararg 
 class TestProvider(
         val id: String,
         val healthy: AtomicBoolean = AtomicBoolean(true)
-): Provider {
+) : Provider {
     override fun get(): String? = id
     override fun check(): Boolean = healthy.get()
 }

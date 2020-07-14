@@ -27,7 +27,7 @@ interface BalancingStrategy {
 
 class RandomBalancingStrategy(
         private val randomSupplier: () -> Random = ThreadLocalRandom::current
-): BalancingStrategy {
+) : BalancingStrategy {
     override fun selectNextIndex(optionsCount: Int): Int {
         return randomSupplier().nextInt(optionsCount)
     }
@@ -36,7 +36,7 @@ class RandomBalancingStrategy(
 // a simplified RoundRobin that doesn't track the changes in the list of the available nodes
 class RoundRobinBalancingStrategy(
         private var nextPosition: Int = 0
-): BalancingStrategy {
+) : BalancingStrategy {
     override fun selectNextIndex(optionsCount: Int): Int {
         val selectedOption = nextPosition % optionsCount
         nextPosition = (nextPosition + 1) % optionsCount

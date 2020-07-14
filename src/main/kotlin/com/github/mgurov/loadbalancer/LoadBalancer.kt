@@ -21,6 +21,7 @@ class LoadBalancer(
     private val lock = ReentrantReadWriteLock()
     private val pickerLock = ReentrantLock()
     private val pendingCalls = AtomicInteger()
+
     @Volatile
     private var providers: List<ProviderStatusHolder> = listOf()
 
@@ -86,7 +87,9 @@ class LoadBalancer(
             val chosenProvider = activeProviders[chosenProviderIndex]
 
             //The call below can be potentially unstable - avoid potentially blocking locks.
-            return try {chosenProvider.get()} catch (e: Exception) {
+            return try {
+                chosenProvider.get()
+            } catch (e: Exception) {
                 throw UnderlyingProviderException("There was a problem calling provider", e)
             }
 
@@ -115,7 +118,7 @@ class LoadBalancer(
             val newHealthCheckExecutor = ScheduledThreadPoolExecutor(1)
             //technically, the line below produces a "weak" side-effect in a form of a scheduled job - which is warned against by java.util.concurrent.atomic.AtomicReference.getAndUpdate
             //but practically that shouldn't be a problem since the start/stop of the health check timer isn't supposed to be happening frequent on a given LB
-            newHealthCheckExecutor.scheduleAtFixedRate({this.checkProvidersHealth()}, 0L, period.toNanos(), TimeUnit.NANOSECONDS)
+            newHealthCheckExecutor.scheduleAtFixedRate({ this.checkProvidersHealth() }, 0L, period.toNanos(), TimeUnit.NANOSECONDS)
             newHealthCheckExecutor
         }
     }
@@ -152,20 +155,20 @@ class LoadBalancer(
         }
     }
 
-    enum class ProviderStatus{
+    enum class ProviderStatus {
         OK,
         RECOVERING,
         NOK
     }
 }
 
-abstract class LoadBalancingException(message: String, cause: Exception?): RuntimeException(message, cause) {
+abstract class LoadBalancingException(message: String, cause: Exception?) : RuntimeException(message, cause) {
     constructor(message: String) : this(message, null)
 }
 
-class UnderlyingProviderException(message: String, cause: Exception): LoadBalancingException(message, cause)
-class NoActiveProvidersAvailableException(message: String): LoadBalancingException(message)
-class ClusterCapacityExceededException(message: String): LoadBalancingException(message)
+class UnderlyingProviderException(message: String, cause: Exception) : LoadBalancingException(message, cause)
+class NoActiveProvidersAvailableException(message: String) : LoadBalancingException(message)
+class ClusterCapacityExceededException(message: String) : LoadBalancingException(message)
 
 //TODO: mention potential performance benefit of lambda's
 //TODO: read on the thread barriers.

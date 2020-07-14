@@ -8,14 +8,14 @@ class RoundRobinBalancingStrategyTest {
     @Test
     fun `picks first position by default`() {
         assertThat(
-            RoundRobinBalancingStrategy().selectNextIndex(3)
+                RoundRobinBalancingStrategy().selectNextIndex(3)
         ).isEqualTo(0)
     }
 
     @Test
     fun `should pick current position`() {
         assertThat(
-            RoundRobinBalancingStrategy(nextPosition = 1).selectNextIndex(3)
+                RoundRobinBalancingStrategy(nextPosition = 1).selectNextIndex(3)
         ).isEqualTo(1)
     }
 
@@ -85,5 +85,4 @@ class RoundRobinBalancingStrategyTest {
             roundRobin.selectNextIndex(0)
         }
     }
-
 }
