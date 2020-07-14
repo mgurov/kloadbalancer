@@ -32,7 +32,6 @@ class RoundRobinBalancingStrategyTest {
         ).containsExactly(0, 1, 2, 0)
     }
 
-
     @Test
     fun `should start anew when appeared to exceed the size`() {
         val roundRobin = RoundRobinBalancingStrategy()
@@ -45,6 +44,21 @@ class RoundRobinBalancingStrategyTest {
                         roundRobin.selectNextIndex(2)
                 )
         ).containsExactly(0, 1, 0, 1)
+    }
+
+    @Test
+    fun `should continue when extra items added`() {
+        val roundRobin = RoundRobinBalancingStrategy()
+
+        assertThat(
+                listOf(
+                        roundRobin.selectNextIndex(3),
+                        roundRobin.selectNextIndex(3),
+                        roundRobin.selectNextIndex(3),
+                        roundRobin.selectNextIndex(4),  //one active item more
+                        roundRobin.selectNextIndex(4)
+                )
+        ).containsExactly(0, 1, 2, 3, 0)
     }
 
 }
