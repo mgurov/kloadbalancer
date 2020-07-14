@@ -16,7 +16,7 @@ import kotlin.concurrent.write
 class LoadBalancer(
         val capacity: Int = 10, //max number of providers allowed to be registered
         val balancingStrategy: BalancingStrategy = RandomBalancingStrategy(),
-        val simultaneousCallSingleProviderLimit: Int? = null //TODO: document? + on high values can exceed max int.
+        val simultaneousCallSingleProviderLimit: Int? = null //can get bonkers when reaching MAXINT upon multiplication by the number of active nodes. Which is perhaps to exotic of a case to care about.
 ) {
     private val lock = ReentrantReadWriteLock()
     private val pickerLock = ReentrantLock()
@@ -49,27 +49,17 @@ class LoadBalancer(
         }
     }
 
-    //TODO: describe can return null if no backing providers available
-    //TODO: describe "optimistic" selection
     /**
      *  `get` returns the response of one of the active providers, determined by the balancingStrategy.
      *
      *  Active provider is a provider that is registered and healthy.
      *
-     *  Successfull call always returns non-null value.
-     *
-     *  `null` is returned when no active providers are available.
-     *
-     *  `null` is also returned when the number of calls exceeds simultaneousCallSingleProviderLimit * number of active providers.
-     *
-     *  Possible exceptions thrown by providers aren't handled and are supposed to be handled by the callers of the method.
+     *  Throws one of the `LoadBalancingException` upon a failure.
      *
      *  In the real implementation, a hierarchy of exceptions or an Either object would've been used to indicate a kind of a problem
      *  encountered, potentially imposing certain error reporting expectations on the Provider interface contract.
      *
      *  It's possible that a just unregister provider would still receive a new call.
-     *
-     *  TODO: throw and wrap exceptions.
      *
      */
     fun get(): String? {
