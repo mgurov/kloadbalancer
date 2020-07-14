@@ -1,6 +1,7 @@
 package com.github.mgurov.loadbalancer
 
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatExceptionOfType
 import org.junit.jupiter.api.Test
 
 class RoundRobinBalancingStrategyTest {
@@ -64,7 +65,25 @@ class RoundRobinBalancingStrategyTest {
         ).containsExactly(0, 1, 2, 0, 1, 2, 3, 0)
     }
 
-    //TODO: 1's
-    //TODO: zero's
+    @Test
+    fun `should work ok with singleton`() {
+        val roundRobin = RoundRobinBalancingStrategy()
+
+        assertThat(
+                listOf(
+                        roundRobin.selectNextIndex(1),
+                        roundRobin.selectNextIndex(1)
+                )
+        ).containsExactly(0, 0)
+    }
+
+    @Test
+    fun `ok to throw division by zero on no options since shouldn't be called this way`() {
+        val roundRobin = RoundRobinBalancingStrategy()
+
+        assertThatExceptionOfType(ArithmeticException::class.java).isThrownBy {
+            roundRobin.selectNextIndex(0)
+        }
+    }
 
 }
