@@ -168,6 +168,14 @@ class LoadBalancer(
     }
 }
 
+/**
+ * Implementation notes:
+ *
+ * If provided as a library with little control over the clients of the LoadBalancer,
+ * we might want to hide this interface so that it's signature isn't a part of the public contract should we want to implement
+ * more elaborate strategies in the future that require more knowledge about the active options number.
+ *
+ */
 interface BalancingStrategy {
     /**
      * selectNextIndex should return the 0-based index of the next option (Provider) based on the strategy.
@@ -187,6 +195,7 @@ class RandomBalancingStrategy(
     }
 }
 
+//TODO: unit-test edge cases.
 // a simplified RoundRobin that doesn't track the changes in the list of the available nodes
 class RoundRobinBalancingStrategy(
         private var position: Int = 0
