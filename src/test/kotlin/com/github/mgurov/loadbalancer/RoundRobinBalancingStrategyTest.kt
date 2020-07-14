@@ -18,4 +18,18 @@ class RoundRobinBalancingStrategyTest {
         ).isEqualTo(1)
     }
 
+    @Test
+    fun `should start anew when exceeding the list`() {
+        val roundRobin = RoundRobinBalancingStrategy()
+
+        assertThat(
+                listOf(
+                        roundRobin.selectNextIndex(3),
+                        roundRobin.selectNextIndex(3),
+                        roundRobin.selectNextIndex(3),
+                        roundRobin.selectNextIndex(3)
+                )
+        ).containsExactly(0, 1, 2, 0)
+    }
+
 }
