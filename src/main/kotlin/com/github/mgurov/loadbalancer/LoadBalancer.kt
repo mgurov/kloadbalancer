@@ -21,8 +21,8 @@ class LoadBalancer(
     private val lock = ReentrantReadWriteLock()
     private val pickerLock = ReentrantLock()
     private val pendingCalls = AtomicInteger()
-    @Volatile //TODO: do I still need it?
-    private var providers: List<ProviderStatusHolder> = listOf() //TODO: thread unsafe yet
+    @Volatile
+    private var providers: List<ProviderStatusHolder> = listOf()
 
     /**
      * `register` adds a new provider to the LoadBalancer.
@@ -122,8 +122,8 @@ class LoadBalancer(
 
     fun stopHealthChecking(awaitTermination: Duration = Duration.ofHours(1)) {
         healthCheckTimer.getAndUpdate {
-            it?.shutdown();
-            it?.awaitTermination(awaitTermination.toNanos(), TimeUnit.NANOSECONDS);
+            it?.shutdown()
+            it?.awaitTermination(awaitTermination.toNanos(), TimeUnit.NANOSECONDS)
             null
         }
     }
