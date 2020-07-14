@@ -50,7 +50,7 @@ class LoadBalancerTest {
         val expectedCause = RuntimeException("blah")
 
         loadBalancer.register(object : Provider {
-            override fun get(): Nothing {
+            override fun get(): String? {
                 throw expectedCause
             }
             override fun check() = true
@@ -136,7 +136,7 @@ class LoadBalancerTest {
         val healthChecked = AtomicInteger()
         val loadBalancer = LoadBalancer()
         loadBalancer.register(object: Provider {
-            override fun get(): String {
+            override fun get(): String? {
                 TODO("Not yet implemented")
             }
 
@@ -172,7 +172,7 @@ class LoadBalancerTest {
 
         val loadBalancer = LoadBalancer(balancingStrategy = RoundRobinBalancingStrategy())
         loadBalancer.register(object: Provider {
-            override fun get(): String {
+            override fun get(): String? {
                 throw RuntimeException("should've not even called me")
             }
 
@@ -198,7 +198,7 @@ class LoadBalancerTest {
         val loadBalancer = LoadBalancer(balancingStrategy = RoundRobinBalancingStrategy(), simultaneousCallSingleProviderLimit = 2)
 
         loadBalancer.register(object: Provider {
-            override fun get(): String {
+            override fun get(): String? {
                 hasPaused.get().countDown()
                 mayGo.await()
                 return "OK"
@@ -241,7 +241,7 @@ class TestProvider(
         val id: String,
         val healthy: AtomicBoolean = AtomicBoolean(true)
 ): Provider {
-    override fun get(): String = id
+    override fun get(): String? = id
     override fun check(): Boolean = healthy.get()
 }
 

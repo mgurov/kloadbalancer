@@ -143,7 +143,7 @@ class LoadBalancer(
             @Volatile
             var status: ProviderStatus
     ) {
-        fun get(): String {
+        fun get(): String? {
             return provider.get()
         }
 
