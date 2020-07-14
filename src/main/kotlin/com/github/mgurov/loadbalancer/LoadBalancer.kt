@@ -1,5 +1,7 @@
 package com.github.mgurov.loadbalancer
 
+import java.lang.Exception
+import java.lang.RuntimeException
 import java.time.Duration
 import java.util.concurrent.ScheduledThreadPoolExecutor
 import java.util.concurrent.TimeUnit
@@ -93,9 +95,10 @@ class LoadBalancer(
             }
             val chosenProvider = activeProviders[chosenProviderIndex]
 
-            //TODO: handle exceptions here.
             //The call below can be potentially unstable - avoid potentially blocking locks.
-            return chosenProvider.get()
+            return try {chosenProvider.get()} catch (e: Exception) {
+                throw UnderlyingProviderException("There was a problem calling provider", e)
+            }
 
         } finally {
             pendingCalls.decrementAndGet()
@@ -165,6 +168,12 @@ class LoadBalancer(
         NOK
     }
 }
+
+abstract class LoadBalancingException(message: String, cause: Exception?): RuntimeException(message, cause) {
+    constructor(message: String) : this(message, null)
+}
+
+class UnderlyingProviderException(message: String, cause: Exception): LoadBalancingException(message, cause)
 
 //TODO: mention potential performance benefit of lambda's
 //TODO: read on the thread barriers.

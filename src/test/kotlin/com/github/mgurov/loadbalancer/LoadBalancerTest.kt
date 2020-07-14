@@ -1,7 +1,6 @@
 package com.github.mgurov.loadbalancer
 
-import org.assertj.core.api.Assertions.assertThat
-import org.assertj.core.api.Assertions.assertThatIllegalStateException
+import org.assertj.core.api.Assertions.*
 import org.junit.jupiter.api.Test
 import java.time.Duration
 import java.util.concurrent.*
@@ -44,6 +43,25 @@ class LoadBalancerTest {
 
         assertThat(actuals).containsExactly("1", "2", "1", "2", "1", "2", "1", "2", "1", "2")
     }
+
+    @Test
+    fun `should wrap exception thrown by a provider`() {
+        val loadBalancer = LoadBalancer()
+        val expectedCause = RuntimeException("blah")
+
+        loadBalancer.register(object : Provider {
+            override fun get(): Nothing {
+                throw expectedCause
+            }
+            override fun check() = true
+        })
+
+        assertThatExceptionOfType(UnderlyingProviderException::class.java).isThrownBy {
+            loadBalancer.get()
+        }.withCause(expectedCause)
+    }
+
+
 
     @Test
     fun `should not invoke balancing strategy if no providers`() {
