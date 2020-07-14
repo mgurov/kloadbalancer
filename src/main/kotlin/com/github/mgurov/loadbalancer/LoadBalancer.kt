@@ -80,7 +80,7 @@ class LoadBalancer(
             providers.filter { it.status == ProviderStatus.OK }
         }
         if (activeProviders.isEmpty()) {
-            return null
+            throw NoActiveProvidersAvailableException("No active providers to serve the request")
         }
 
         val newPendingCallsCount = pendingCalls.incrementAndGet()
@@ -174,6 +174,7 @@ abstract class LoadBalancingException(message: String, cause: Exception?): Runti
 }
 
 class UnderlyingProviderException(message: String, cause: Exception): LoadBalancingException(message, cause)
+class NoActiveProvidersAvailableException(message: String): LoadBalancingException(message)
 
 //TODO: mention potential performance benefit of lambda's
 //TODO: read on the thread barriers.

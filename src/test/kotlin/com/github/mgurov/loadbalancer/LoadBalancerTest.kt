@@ -61,8 +61,6 @@ class LoadBalancerTest {
         }.withCause(expectedCause)
     }
 
-
-
     @Test
     fun `should not invoke balancing strategy if no providers`() {
         val loadBalancer = LoadBalancer(balancingStrategy = object: BalancingStrategy {
@@ -71,7 +69,9 @@ class LoadBalancerTest {
             }
         })
 
-        assertThat(loadBalancer.get()).isNull()
+        assertThatExceptionOfType(NoActiveProvidersAvailableException::class.java).isThrownBy {
+            loadBalancer.get()
+        }
     }
 
     @Test
@@ -184,7 +184,9 @@ class LoadBalancerTest {
 
         loadBalancer.checkProvidersHealth()
 
-        assertThat(loadBalancer.get()).isNull()
+        assertThatExceptionOfType(NoActiveProvidersAvailableException::class.java).isThrownBy {
+            loadBalancer.get()
+        }
     }
 
     @Test
