@@ -18,12 +18,10 @@ class LoadBalancer(
         val balancingStrategy: BalancingStrategy = RandomBalancingStrategy(),
         val simultaneousCallSingleProviderLimit: Int? = null //can get bonkers when reaching MAXINT upon multiplication by the number of active nodes. Which is perhaps to exotic of a case to care about.
 ) {
-    private val lock = ReentrantReadWriteLock()
+    private val providersLock = ReentrantReadWriteLock()
+    private var providers: List<ProviderStatusHolder> = listOf() //the access is supposed to always be guarded by providersLock
     private val pickerLock = ReentrantLock()
     private val pendingCalls = AtomicInteger()
-
-    @Volatile
-    private var providers: List<ProviderStatusHolder> = listOf()
 
     /**
      * `register` adds a new provider to the LoadBalancer.
@@ -31,7 +29,7 @@ class LoadBalancer(
      *  No checks are performed to ensure uniqueness of the providers specified - this is a caller's concern.
      */
     fun register(provider: Provider) {
-        lock.write {
+        providersLock.write {
             check(providers.size < capacity) {
                 "Can't register more than $capacity providers"
             }
@@ -45,7 +43,7 @@ class LoadBalancer(
      *  There might be pending or even (for a brief period time) new requests to the removed provider after this method returns.
      */
     fun unregister(provider: Provider) {
-        lock.write {
+        providersLock.write {
             providers = providers.filter { it.provider != provider }
         }
     }
@@ -67,7 +65,7 @@ class LoadBalancer(
 
         //The read lock is very limited to avoid having the selected provider's `.get()` invoked from within the lock, since
         //the providers aren't controlled and a slow responding one may compromise the performance of the whole load balancer.
-        val activeProviders = lock.read {
+        val activeProviders = providersLock.read {
             providers.filter { it.status == ProviderStatus.OK }
         }
         if (activeProviders.isEmpty()) {
@@ -99,7 +97,7 @@ class LoadBalancer(
     }
 
     internal fun checkProvidersHealth() {
-        lock.read {
+        providersLock.read {
             providers.toList() //make a copy to avoid calling `check` of a potentially misbehaving provider within a lock
         }.forEach {
             //a grossly misbehaving provider check implementation can still impede our health checking. To prevent this, we could've
