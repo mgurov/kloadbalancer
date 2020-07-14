@@ -2,7 +2,6 @@ package com.github.mgurov.loadbalancer
 
 import java.time.Duration
 import java.util.concurrent.ScheduledThreadPoolExecutor
-import java.util.concurrent.ThreadLocalRandom
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
@@ -11,7 +10,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.read
 import kotlin.concurrent.withLock
 import kotlin.concurrent.write
-import java.util.Random
 
 class LoadBalancer(
         val capacity: Int = 10, //max number of providers allowed to be registered
