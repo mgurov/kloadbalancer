@@ -33,14 +33,13 @@ class RandomBalancingStrategy(
     }
 }
 
-//TODO: unit-test edge cases.
 // a simplified RoundRobin that doesn't track the changes in the list of the available nodes
 class RoundRobinBalancingStrategy(
-        private var position: Int = 0
+        private var nextPosition: Int = 0
 ): BalancingStrategy {
     override fun selectNextIndex(optionsCount: Int): Int {
-        val theNextOne = position % optionsCount
-        position = (position + 1) % optionsCount
-        return theNextOne
+        val selectedOption = nextPosition % optionsCount
+        nextPosition = (nextPosition + 1) % optionsCount
+        return selectedOption
     }
 }

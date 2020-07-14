@@ -14,7 +14,7 @@ class RoundRobinBalancingStrategyTest {
     @Test
     fun `should pick current position`() {
         assertThat(
-            RoundRobinBalancingStrategy(position = 1).selectNextIndex(3)
+            RoundRobinBalancingStrategy(nextPosition = 1).selectNextIndex(3)
         ).isEqualTo(1)
     }
 
@@ -56,9 +56,15 @@ class RoundRobinBalancingStrategyTest {
                         roundRobin.selectNextIndex(3),
                         roundRobin.selectNextIndex(3),
                         roundRobin.selectNextIndex(4),  //one active item more
+                        roundRobin.selectNextIndex(4),
+                        roundRobin.selectNextIndex(4),
+                        roundRobin.selectNextIndex(4),
                         roundRobin.selectNextIndex(4)
                 )
-        ).containsExactly(0, 1, 2, 3, 0)
+        ).containsExactly(0, 1, 2, 0, 1, 2, 3, 0)
     }
+
+    //TODO: 1's
+    //TODO: zero's
 
 }
