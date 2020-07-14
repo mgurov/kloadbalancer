@@ -18,7 +18,7 @@ class LoadBalancerTest {
         loadBalancer.register(TestProvider("first provider"))
         loadBalancer.register(TestProvider("second provider"))
 
-        Assertions.assertThatIllegalStateException().isThrownBy {
+        assertThatIllegalStateException().isThrownBy {
             loadBalancer.register(TestProvider("third provides exceeds the capacity of 2"))
         }
     }
