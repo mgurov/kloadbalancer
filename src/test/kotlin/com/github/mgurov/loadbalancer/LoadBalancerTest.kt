@@ -192,18 +192,15 @@ class LoadBalancerTest {
     @Test
     fun `should apply backpressure on exceeding requests`() {
 
-        val mayGo = CountDownLatch(1) //TODO: choose between these two
+        val mayGo = CountDownLatch(1)
         val hasPaused = AtomicReference(CountDownLatch(2))
 
         val loadBalancer = LoadBalancer(balancingStrategy = RoundRobinBalancingStrategy(), simultaneousCallSingleProviderLimit = 2)
 
         loadBalancer.register(object: Provider {
             override fun get(): String {
-                println("new call through")
                 hasPaused.get().countDown()
-                println("awaiting")
                 mayGo.await()
-                println("may go")
                 return "OK"
             }
 
@@ -215,28 +212,23 @@ class LoadBalancerTest {
         val executorService: ExecutorService = ThreadPoolExecutor(3, 3, 0L, TimeUnit.MILLISECONDS, LinkedBlockingQueue())
 
         val call = Callable {
-            println("starting call")
-            val result = loadBalancer.get()
-            println("got result $result")
-            result
+            loadBalancer.get()
         }
         val firstCall = executorService.submit(call)
 
         val secondCall = executorService.submit(call)
 
         hasPaused.get().await()
-        //hasPaused.set(CountDownLatch(1)) //reset to wait for third call to be blocked
 
         val thirdCall = executorService.submit(call)
 
-        val thirdCallShallBeShortcut = thirdCall.get()
-
-        //hasPaused.get().await()
-        println("allowing to go")
+        assertThatExceptionOfType(ExecutionException::class.java).isThrownBy {
+            thirdCall.get()
+        }.withCauseInstanceOf(ClusterCapacityExceededException::class.java)
 
         mayGo.countDown()
 
-        assertThat(listOf(firstCall.get(), secondCall.get(), thirdCallShallBeShortcut)).containsExactly("OK", "OK", null)
+        assertThat(listOf(firstCall.get(), secondCall.get())).containsExactly("OK", "OK")
     }
 }
 

@@ -87,7 +87,7 @@ class LoadBalancer(
 
         try {
             if (simultaneousCallSingleProviderLimit != null && newPendingCallsCount > simultaneousCallSingleProviderLimit * activeProviders.size) {
-                return null; // TODO: backpressure exception?
+                throw ClusterCapacityExceededException("Cluster capacity limit exceeded: already pending=$simultaneousCallSingleProviderLimit size=${activeProviders.size}")
             }
 
             val chosenProviderIndex = pickerLock.withLock {
@@ -175,6 +175,7 @@ abstract class LoadBalancingException(message: String, cause: Exception?): Runti
 
 class UnderlyingProviderException(message: String, cause: Exception): LoadBalancingException(message, cause)
 class NoActiveProvidersAvailableException(message: String): LoadBalancingException(message)
+class ClusterCapacityExceededException(message: String): LoadBalancingException(message)
 
 //TODO: mention potential performance benefit of lambda's
 //TODO: read on the thread barriers.
