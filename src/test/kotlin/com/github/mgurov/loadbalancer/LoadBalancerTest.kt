@@ -1,13 +1,13 @@
 package com.github.mgurov.loadbalancer
 
-import org.assertj.core.api.Assertions
-import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.*
 import org.junit.jupiter.api.Test
+import java.time.Duration
 import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
-import kotlin.random.Random
-
+import java.util.Random
 
 class LoadBalancerTest {
     @Test
@@ -16,20 +16,21 @@ class LoadBalancerTest {
         loadBalancer.register(TestProvider("first provider"))
         loadBalancer.register(TestProvider("second provider"))
 
-        Assertions.assertThatIllegalStateException().isThrownBy {
+        assertThatIllegalStateException().isThrownBy {
             loadBalancer.register(TestProvider("third provides exceeds the capacity of 2"))
         }
     }
 
     @Test
     fun `should call random providers when configured with such strategy`() {
-        val loadBalancer = LoadBalancer(balancingStrategy = RandomBalancingStrategy(Random(0L)))
+        val seededRandom = Random(0L)
+        val loadBalancer = LoadBalancer(balancingStrategy = RandomBalancingStrategy { seededRandom })
         loadBalancer.register(TestProvider("1"))
         loadBalancer.register(TestProvider("2"))
 
         val actuals = (1..10).map { loadBalancer.get() }
 
-        assertThat(actuals).containsExactly("2", "1", "2", "2", "2", "1", "1", "1", "1", "2")
+        assertThat(actuals).containsExactly("2", "2", "1", "2", "2", "1", "2", "1", "2", "2")
     }
 
     @Test
@@ -44,14 +45,34 @@ class LoadBalancerTest {
     }
 
     @Test
+    fun `should wrap exception thrown by a provider`() {
+        val loadBalancer = LoadBalancer()
+        val expectedCause = RuntimeException("blah")
+
+        loadBalancer.register(object : Provider {
+            override fun get(): String? {
+                throw expectedCause
+            }
+
+            override fun check() = true
+        })
+
+        assertThatExceptionOfType(UnderlyingProviderException::class.java).isThrownBy {
+            loadBalancer.get()
+        }.withCause(expectedCause)
+    }
+
+    @Test
     fun `should not invoke balancing strategy if no providers`() {
-        val loadBalancer = LoadBalancer(balancingStrategy = object: BalancingStrategy {
-            override fun selectNext(providers: List<LoadBalancer.ProviderStatusHolder>): LoadBalancer.ProviderStatusHolder {
+        val loadBalancer = LoadBalancer(balancingStrategy = object : BalancingStrategy {
+            override fun selectNextIndex(optionsCount: Int): Int {
                 throw RuntimeException("should've not called me")
             }
         })
 
-        assertThat(loadBalancer.get()).isNull()
+        assertThatExceptionOfType(NoActiveProvidersAvailableException::class.java).isThrownBy {
+            loadBalancer.get()
+        }
     }
 
     @Test
@@ -111,11 +132,48 @@ class LoadBalancerTest {
     }
 
     @Test
+    fun `should do the health check every once in a while in the background`() {
+
+        val healthChecked = AtomicInteger()
+        val loadBalancer = LoadBalancer()
+        loadBalancer.register(object : Provider {
+            override fun get(): String? {
+                TODO("Not yet implemented")
+            }
+
+            override fun check(): Boolean {
+                healthChecked.incrementAndGet()
+                return true
+            }
+        })
+
+        loadBalancer.startHealthChecking(Duration.ofMillis(100))
+        TimeUnit.MILLISECONDS.sleep(300)
+        loadBalancer.stopHealthChecking()
+        assertThat(healthChecked.get()).isGreaterThan(0)
+
+        //and there're no further checks
+        healthChecked.set(0)
+        TimeUnit.MILLISECONDS.sleep(300)
+        assertThat(healthChecked.get()).isEqualTo(0)
+    }
+
+    @Test
+    fun `should not allow subsequent checking start`() {
+
+        val loadBalancer = LoadBalancer()
+        loadBalancer.startHealthChecking(Duration.ofMillis(100))
+        assertThatIllegalStateException().isThrownBy {
+            loadBalancer.startHealthChecking(Duration.ofMillis(100))
+        }
+    }
+
+    @Test
     fun `shouldn't call balancing strategy when no active nodes`() {
 
         val loadBalancer = LoadBalancer(balancingStrategy = RoundRobinBalancingStrategy())
-        loadBalancer.register(object: Provider {
-            override fun get(): String {
+        loadBalancer.register(object : Provider {
+            override fun get(): String? {
                 throw RuntimeException("should've not even called me")
             }
 
@@ -127,24 +185,23 @@ class LoadBalancerTest {
 
         loadBalancer.checkProvidersHealth()
 
-        assertThat(loadBalancer.get()).isNull()
+        assertThatExceptionOfType(NoActiveProvidersAvailableException::class.java).isThrownBy {
+            loadBalancer.get()
+        }
     }
 
     @Test
     fun `should apply backpressure on exceeding requests`() {
 
-        val mayGo = CountDownLatch(1) //TODO: choose between these two
+        val mayGo = CountDownLatch(1)
         val hasPaused = AtomicReference(CountDownLatch(2))
 
         val loadBalancer = LoadBalancer(balancingStrategy = RoundRobinBalancingStrategy(), simultaneousCallSingleProviderLimit = 2)
 
-        loadBalancer.register(object: Provider {
-            override fun get(): String {
-                println("new call through")
+        loadBalancer.register(object : Provider {
+            override fun get(): String? {
                 hasPaused.get().countDown()
-                println("awaiting")
                 mayGo.await()
-                println("may go")
                 return "OK"
             }
 
@@ -155,38 +212,27 @@ class LoadBalancerTest {
 
         val executorService: ExecutorService = ThreadPoolExecutor(3, 3, 0L, TimeUnit.MILLISECONDS, LinkedBlockingQueue())
 
-        val call = object : Callable<String?> {
-            override fun call(): String? {
-                println("starting call")
-                val result = loadBalancer.get()
-                println("got result $result")
-                return result
-            }
+        val call = Callable {
+            loadBalancer.get()
         }
         val firstCall = executorService.submit(call)
 
         val secondCall = executorService.submit(call)
 
         hasPaused.get().await()
-        //hasPaused.set(CountDownLatch(1)) //reset to wait for third call to be blocked
 
         val thirdCall = executorService.submit(call)
 
-        val thirdCallShallBeShortcut = thirdCall.get()
-
-        //hasPaused.get().await()
-        println("allowing to go")
+        assertThatExceptionOfType(ExecutionException::class.java).isThrownBy {
+            thirdCall.get()
+        }.withCauseInstanceOf(ClusterCapacityExceededException::class.java)
 
         mayGo.countDown()
 
-        assertThat(listOf(firstCall.get(), secondCall.get(), thirdCallShallBeShortcut)).containsExactly("OK", "OK", null)
+        assertThat(listOf(firstCall.get(), secondCall.get())).containsExactly("OK", "OK")
     }
 }
 
-//TODO: test or document provider misbehavior.
-//TODO: cover interaction between number of calls and availability
-
-//TODO: fancier assertions maybe
 private fun assertThatCallsReturn(loadBalancer: LoadBalancer, upTo: Int, vararg expected: String) {
     val actuals = (1..upTo).map { loadBalancer.get() }
     assertThat(actuals).containsExactly(*expected)
@@ -195,7 +241,7 @@ private fun assertThatCallsReturn(loadBalancer: LoadBalancer, upTo: Int, vararg 
 class TestProvider(
         val id: String,
         val healthy: AtomicBoolean = AtomicBoolean(true)
-): Provider {
-    override fun get(): String = id
+) : Provider {
+    override fun get(): String? = id
     override fun check(): Boolean = healthy.get()
 }

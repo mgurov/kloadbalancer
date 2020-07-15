@@ -1,23 +1,32 @@
 package com.github.mgurov.loadbalancer
 
+import java.lang.Exception
+import java.lang.RuntimeException
+import java.time.Duration
+import java.util.concurrent.ScheduledThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.read
 import kotlin.concurrent.write
-import kotlin.random.Random
 
 class LoadBalancer(
         val capacity: Int = 10, //max number of providers allowed to be registered
-        val balancingStrategy: BalancingStrategy = RandomBalancingStrategy(),
-        val simultaneousCallSingleProviderLimit: Int = Integer.MAX_VALUE //TODO: document?
+        val balancingStrategy: BalancingStrategy = RoundRobinBalancingStrategy(),
+        val simultaneousCallSingleProviderLimit: Int? = null //can get bonkers when reaching MAXINT upon multiplication by the number of active nodes. Which is perhaps to exotic of a case to care about.
 ) {
-    private val lock = ReentrantReadWriteLock()
-    @Volatile //TODO: do I still need it?
-    private var providers: List<ProviderStatusHolder> = listOf() //TODO: thread unsafe yet
+    private val providersLock = ReentrantReadWriteLock()
+    private var providers: List<ProviderStatusHolder> = listOf() //the access is supposed to always be guarded by providersLock
+    private val pendingCalls = AtomicInteger()
 
-    //TODO: document up to client to ensure uniqueness of the providers.
+    /**
+     * `register` adds a new provider to the LoadBalancer.
+     *
+     *  No checks are performed to ensure uniqueness of the providers specified - this is a caller's concern.
+     */
     fun register(provider: Provider) {
-        lock.write {
+        providersLock.write {
             check(providers.size < capacity) {
                 "Can't register more than $capacity providers"
             }
@@ -25,95 +34,136 @@ class LoadBalancer(
         }
     }
 
-    //TODO: document first only and by equality
-    //TODO: document returns true if unregistered false if not found
+    /**
+     * `unregister` removes the specified provider from the LoadBalancer based on equality.
+     *
+     *  There might be pending or even (for a brief period time) new requests to the removed provider after this method returns.
+     */
     fun unregister(provider: Provider) {
-        lock.write {
+        providersLock.write {
             providers = providers.filter { it.provider != provider }
         }
     }
 
-    //TODO: make it be executed periodically (every X sec)
-    //TODO: make it immutable maybe.
-    //TODO: describe since we're reading from providers, those shall stay intact
-    fun checkProvidersHealth() {
-        lock.read {
-            providers.forEach {
-                if (it.provider.check()) {
-                    if (it.status == ProviderStatus.NOK) {
-                        it.status = ProviderStatus.RECOVERING
-                    } else {
-                        it.status = ProviderStatus.OK
-                    }
-                } else {
-                    it.status = ProviderStatus.NOK
-                }
-            }
-        }
-    }
-
-    //TODO: describe can return null if no backing providers available
-    //TODO: describe "optimistic" selection
+    /**
+     *  `get` returns the response of one of the active providers, determined by the balancingStrategy.
+     *
+     *  Active provider is a provider that is registered and healthy.
+     *
+     *  Throws one of the `LoadBalancingException` upon a failure.
+     *
+     *  In the real implementation, a hierarchy of exceptions or an Either object would've been used to indicate a kind of a problem
+     *  encountered, potentially imposing certain error reporting expectations on the Provider interface contract.
+     *
+     *  It's possible that a just unregister provider would still receive a new call.
+     *
+     */
     fun get(): String? {
-        //TODO: will it be OK with the timing issues?
-        val activeProviders = lock.read {
-            providers.filter { it.status == ProviderStatus.OK && it.callsInProgress.get() < simultaneousCallSingleProviderLimit }
+
+        //The read lock is very limited to avoid having the selected provider's `.get()` invoked from within the lock, since
+        //the providers aren't controlled and a slow responding one may compromise the performance of the whole load balancer.
+        val activeProviders = providersLock.read {
+            providers.filter { it.status == ProviderStatus.OK }
         }
         if (activeProviders.isEmpty()) {
-            return null
+            throw NoActiveProvidersAvailableException("No active providers to serve the request")
         }
-        //TODO: more performance effective way
-        val providerChosen = balancingStrategy.selectNext(activeProviders)
-        return providerChosen.get()
+
+        val newPendingCallsCount = pendingCalls.incrementAndGet()
+
+        try {
+            if (simultaneousCallSingleProviderLimit != null && newPendingCallsCount > simultaneousCallSingleProviderLimit * activeProviders.size) {
+                throw ClusterCapacityExceededException("Cluster capacity limit exceeded: already pending=$simultaneousCallSingleProviderLimit size=${activeProviders.size}")
+            }
+
+            val chosenProviderIndex = balancingStrategy.selectNextIndex(activeProviders.size)
+            val chosenProvider = activeProviders[chosenProviderIndex]
+
+            //The call below can be potentially unstable - avoid potentially blocking locks.
+            return try {
+                chosenProvider.get()
+            } catch (e: Exception) {
+                throw UnderlyingProviderException("There was a problem calling provider", e)
+            }
+
+        } finally {
+            pendingCalls.decrementAndGet()
+        }
     }
 
-    //TODO: make data class with copying
-    //TODO: wrap as "provider wrapper" interface?
-    //TODO: make private parts?
-    class ProviderStatusHolder(
-            val provider: Provider,
-            var status: ProviderStatus,
-            var callsInProgress: AtomicInteger = AtomicInteger(0)
-    ) {
-        fun get(): String {
-            try {
-                println("entering " + callsInProgress.incrementAndGet())
-                return provider.get()
-            } finally {
-                println("leaving " + callsInProgress.decrementAndGet())
+    internal fun checkProvidersHealth() {
+        providersLock.read {
+            providers.toList() //make a copy to avoid calling `check` of a potentially misbehaving provider within a lock
+        }.forEach {
+            //a grossly misbehaving provider check implementation can still impede our health checking. To prevent this, we could've
+            //performed the checks parallel, marking providers timed-out on check as unhealthy.
+            it.check()
+        }
+    }
 
+    private val healthCheckTimer = AtomicReference<ScheduledThreadPoolExecutor?>(null)
+
+    fun startHealthChecking(period: Duration) {
+        healthCheckTimer.getAndUpdate { previousState ->
+            if (previousState != null) {
+                throw IllegalStateException("The health check is already running")
+            }
+            val newHealthCheckExecutor = ScheduledThreadPoolExecutor(1)
+            //technically, the line below produces a "weak" side-effect in a form of a scheduled job - which is warned against by java.util.concurrent.atomic.AtomicReference.getAndUpdate
+            //but practically that shouldn't be a problem since the start/stop of the health check timer isn't supposed to be happening frequent on a given LB
+            newHealthCheckExecutor.scheduleAtFixedRate({ this.checkProvidersHealth() }, 0L, period.toNanos(), TimeUnit.NANOSECONDS)
+            newHealthCheckExecutor
+        }
+    }
+
+    fun stopHealthChecking(awaitTermination: Duration = Duration.ofHours(1)) {
+        healthCheckTimer.getAndUpdate {
+            it?.shutdown()
+            it?.awaitTermination(awaitTermination.toNanos(), TimeUnit.NANOSECONDS)
+            null
+        }
+    }
+
+    private class ProviderStatusHolder(
+            val provider: Provider,
+            @Volatile
+            var status: ProviderStatus
+    ) {
+        fun get(): String? {
+            return provider.get()
+        }
+
+        fun check() {
+            status = if (provider.check()) {
+                //In a high contention environment, we might've considered to sync the status update more strongly,
+                //but in the current setup the checks are executed sequentially upon a timer normally set to seconds
+                if (status == ProviderStatus.NOK) {
+                    ProviderStatus.RECOVERING
+                } else {
+                    ProviderStatus.OK
+                }
+            } else {
+                ProviderStatus.NOK
             }
         }
     }
 
-    enum class ProviderStatus{
+    enum class ProviderStatus {
         OK,
         RECOVERING,
         NOK
     }
 }
 
-interface BalancingStrategy {
-    /**
-     * should not be called with empty list of providers
-     */
-    fun selectNext(providers: List<LoadBalancer.ProviderStatusHolder>): LoadBalancer.ProviderStatusHolder
+abstract class LoadBalancingException(message: String, cause: Exception?) : RuntimeException(message, cause) {
+    constructor(message: String) : this(message, null)
 }
 
-class RandomBalancingStrategy(
-        private val random: Random = Random.Default
-): BalancingStrategy {
-    override fun selectNext(providers: List<LoadBalancer.ProviderStatusHolder>): LoadBalancer.ProviderStatusHolder {
-        return providers[random.nextInt(providers.size)] //TODO: thread unsafe re. random
-    }
-}
+class UnderlyingProviderException(message: String, cause: Exception) : LoadBalancingException(message, cause)
+class NoActiveProvidersAvailableException(message: String) : LoadBalancingException(message)
+class ClusterCapacityExceededException(message: String) : LoadBalancingException(message)
 
-class RoundRobinBalancingStrategy(
-        private var position: Int = 0
-): BalancingStrategy {
-    override fun selectNext(providers: List<LoadBalancer.ProviderStatusHolder>): LoadBalancer.ProviderStatusHolder {
-        val theNextOne = providers[position % providers.size] //TODO: take care of the empty length
-        position = (position + 1) % providers.size
-        return theNextOne
-   }
-}
+//TODO: mention potential performance benefit of lambda's
+//TODO: read on the thread barriers.
+//TODO: make all the files green
+//TODO: reformat all the code.
