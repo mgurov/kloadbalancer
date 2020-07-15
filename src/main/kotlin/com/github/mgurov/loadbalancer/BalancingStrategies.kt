@@ -36,6 +36,7 @@ class RandomBalancingStrategy(
 // a simplified RoundRobin that doesn't track the changes in the list of the available nodes
 class RoundRobinBalancingStrategy : BalancingStrategy {
     private var nextPosition: Int = 0
+
     @Synchronized
     override fun selectNextIndex(optionsCount: Int): Int {
         val selectedOption = nextPosition % optionsCount
