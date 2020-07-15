@@ -7,20 +7,17 @@ import java.util.concurrent.ScheduledThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
-import java.util.concurrent.locks.ReentrantLock
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.read
-import kotlin.concurrent.withLock
 import kotlin.concurrent.write
 
 class LoadBalancer(
         val capacity: Int = 10, //max number of providers allowed to be registered
-        val balancingStrategy: BalancingStrategy = RandomBalancingStrategy(),
+        val balancingStrategy: BalancingStrategy = RoundRobinBalancingStrategy(),
         val simultaneousCallSingleProviderLimit: Int? = null //can get bonkers when reaching MAXINT upon multiplication by the number of active nodes. Which is perhaps to exotic of a case to care about.
 ) {
     private val providersLock = ReentrantReadWriteLock()
     private var providers: List<ProviderStatusHolder> = listOf() //the access is supposed to always be guarded by providersLock
-    private val pickerLock = ReentrantLock()
     private val pendingCalls = AtomicInteger()
 
     /**
@@ -79,9 +76,7 @@ class LoadBalancer(
                 throw ClusterCapacityExceededException("Cluster capacity limit exceeded: already pending=$simultaneousCallSingleProviderLimit size=${activeProviders.size}")
             }
 
-            val chosenProviderIndex = pickerLock.withLock {
-                balancingStrategy.selectNextIndex(activeProviders.size)
-            }
+            val chosenProviderIndex = balancingStrategy.selectNextIndex(activeProviders.size)
             val chosenProvider = activeProviders[chosenProviderIndex]
 
             //The call below can be potentially unstable - avoid potentially blocking locks.
@@ -170,3 +165,5 @@ class ClusterCapacityExceededException(message: String) : LoadBalancingException
 
 //TODO: mention potential performance benefit of lambda's
 //TODO: read on the thread barriers.
+//TODO: make all the files green
+//TODO: reformat all the code.

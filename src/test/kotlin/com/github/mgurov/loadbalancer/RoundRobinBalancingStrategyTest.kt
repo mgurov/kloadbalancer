@@ -13,13 +13,6 @@ class RoundRobinBalancingStrategyTest {
     }
 
     @Test
-    fun `should pick current position`() {
-        assertThat(
-                RoundRobinBalancingStrategy(nextPosition = 1).selectNextIndex(3)
-        ).isEqualTo(1)
-    }
-
-    @Test
     fun `should start anew when exceeding the list`() {
         val roundRobin = RoundRobinBalancingStrategy()
 

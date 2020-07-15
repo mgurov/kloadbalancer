@@ -245,6 +245,3 @@ class TestProvider(
     override fun get(): String? = id
     override fun check(): Boolean = healthy.get()
 }
-
-//TODO: make all the files green
-//TODO: reformat all the code.

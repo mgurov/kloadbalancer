@@ -20,7 +20,7 @@ interface BalancingStrategy {
      *
      * The strategy may keep a state between the invocations.
      *
-     * The invocations are supposed to be serialized by the caller, e.g. no two simultaneous calls would be made from different threads.
+     * The strategy implementation should be thread safe.
      */
     fun selectNextIndex(optionsCount: Int): Int
 }
@@ -34,9 +34,9 @@ class RandomBalancingStrategy(
 }
 
 // a simplified RoundRobin that doesn't track the changes in the list of the available nodes
-class RoundRobinBalancingStrategy(
-        private var nextPosition: Int = 0
-) : BalancingStrategy {
+class RoundRobinBalancingStrategy : BalancingStrategy {
+    private var nextPosition: Int = 0
+    @Synchronized
     override fun selectNextIndex(optionsCount: Int): Int {
         val selectedOption = nextPosition % optionsCount
         nextPosition = (nextPosition + 1) % optionsCount
