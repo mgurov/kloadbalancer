@@ -30,7 +30,7 @@ class LoadBalancerTest {
 
         val actuals = (1..10).map { loadBalancer.get() }
 
-        assertThat(actuals).containsExactly("2", "2", "1", "2", "2", "1", "2", "1", "2", "2")
+        assertThat(actuals).containsExactly("2", "2", "1", "2", "blahblah", "1", "2", "1", "2", "2")
     }
 
     @Test
