@@ -162,8 +162,3 @@ abstract class LoadBalancingException(message: String, cause: Exception?) : Runt
 class UnderlyingProviderException(message: String, cause: Exception) : LoadBalancingException(message, cause)
 class NoActiveProvidersAvailableException(message: String) : LoadBalancingException(message)
 class ClusterCapacityExceededException(message: String) : LoadBalancingException(message)
-
-//TODO: mention potential performance benefit of lambda's
-//TODO: read on the thread barriers.
-//TODO: make all the files green
-//TODO: reformat all the code.
